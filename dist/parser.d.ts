@@ -1,0 +1,33 @@
+import Tokenizer from "./tokenizer";
+import { MatchedRecords, Token, Node, Context } from "./interfaces";
+declare type Extreme = MatchedRecords;
+declare type Longest = MatchedRecords;
+declare function parseIdentifier({ value, range, loc }: Token, tokenizer?: Tokenizer): Node;
+export default class {
+    tokens: Array<Token>;
+    SYNTAX_TREE: Record<string, any>;
+    EXPRESSION_TREE: Record<string, any>;
+    tokenizer: Tokenizer;
+    TYPE_ALIAS: {};
+    padding_token: Token;
+    error_logs: Array<any>;
+    err(...args: any): void;
+    constructor();
+    parse(input: string): any;
+    parseModule(input: string): any;
+    parseScript(input: string): any;
+    parseBlock(context: Context, token?: Token): Node[];
+    parseExpression(context: Context, token?: Token, match_tree?: Record<string, any>): Node;
+    private range;
+    private loc;
+    private _parse;
+    parseCustom(root: Record<string, any>, context: Context, begin?: number, hook?: Function): Node;
+    parseNode(match_tree: Record<string, any>, test: (node: Node) => boolean, context: Context, token?: Token): Node;
+    parseIdentifier: typeof parseIdentifier;
+    parseKeyword({ value, range, loc }: Token): Node;
+    parseDirective(node: Node): any;
+    walk(root: Record<string, any>, context: Context, index: number, backflow_tape: Array<number>, minimum: number): Longest;
+    createNode(context: Context): any;
+    finallize(context: Context, record: Extreme): number;
+}
+export {};
