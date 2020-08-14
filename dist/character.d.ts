@@ -1,4 +1,3 @@
-import { Token } from './interfaces';
 export default class {
     input: string;
     index: number;
@@ -17,5 +16,4 @@ export default class {
     fromCodePoint(cp: number): string;
     inIdentifierStart(): number;
     inIdentifierPart(): number;
-    isFollowingAnExpression(token?: Token): boolean;
 }

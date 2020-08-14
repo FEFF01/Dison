@@ -2380,7 +2380,7 @@ export default (function a() {
 										this.context.isBindingElement = false;
 										this.scanner.index = this.startMarker.index;
 										token = this.nextRegexToken();
-										raw = this.getTokenRaw(token);
+										raw = this.Raw(token);
 										expr = this.finalize(node, new Node.RegexLiteral(token.regex, raw, token.pattern, token.flags));
 										break;
 									default:

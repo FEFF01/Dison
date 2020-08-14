@@ -3,9 +3,9 @@ import {
 } from '../interfaces';
 
 import Tokenizer from '../tokenizer'
-import { search_scan, escape_scan, createSearchTree } from './head'
+import { escape_scan, createSearchTree, MARKS } from './head'
 
-let TOKEN_TYPES: Record<string, string | number> = {
+let TOKEN_TYPE_ENUMS: Record<string, string | number> = {
     Identifier: "Identifier",
     Keyword: "Keyword",
     String: "String",
@@ -63,7 +63,7 @@ let TOKEN_TYPE_SET = [
     ["Null", ["null"]]
 ];
 
-const TOKEN_TYPE_MAP = TOKEN_TYPE_SET.reduce(
+const TOKEN_TYPE_MAPPERS = TOKEN_TYPE_SET.reduce(
     (map, [type, id_set]) => {
         for (let id of id_set) {
             map[" " + id] = type;
@@ -145,153 +145,128 @@ let strbase_match_tree = {
 
 let not_allow_octal_escape = {
     _state: MATCH_STATUS.ERROR,
-    _message: "Octal escape sequences are not allowed in template strings"
+    _error: "Octal escape sequences are not allowed in template strings"
 }
 
+let template_curly_stack = [];
+let template_base = {
+    type: "Template",
+    match_tree: {
+        "\\0": { _str: "\0" },
+        "\\1": not_allow_octal_escape,
+        "\\2": not_allow_octal_escape,
+        "\\3": not_allow_octal_escape,
+        "\\4": not_allow_octal_escape,
+        "\\5": not_allow_octal_escape,
+        "\\6": not_allow_octal_escape,
+        "\\7": not_allow_octal_escape,
+        "`": {
+            _state: MATCH_STATUS.END,
+            _end(tokenizer: Tokenizer) {
+                template_curly_stack.shift();
+                return true;
+            }
+        },
+        "$": {
+            "{": {
+                _state: MATCH_STATUS.END
+            }
+        },
+        ...strbase_match_tree
+    },
+    scanner: escape_scan
+}
 const PUNCTUATORS = [
     {
-        keys: [`"`, `"`], type: "String",
+        key: `"`, type: "String",
         match_tree: {
             '"': {
                 _state: MATCH_STATUS.END
             },
             "\n": {
-                _state: MATCH_STATUS.ERROR,
-                _message: ""
+                _state: MATCH_STATUS.ERROR
             },
             ...strbase_match_tree,
             ...octal_escape_tree
         },
-        //scanner:escape_scan
         escape_scan,
-        scanner(tokenizer: Tokenizer) {
-            return this.escape_scan(tokenizer, {});
+        scanner(tokenizer: Tokenizer, start: number) {
+            return this.escape_scan(tokenizer, start, {});
         }
     },
     {
-        keys: [`'`, `'`], type: "String",
+        key: `'`, type: "String",
         match_tree: {
             "'": {
                 _state: MATCH_STATUS.END
             },
             "\n": {
-                _state: MATCH_STATUS.ERROR,
-                _message: ""
+                _state: MATCH_STATUS.ERROR
             },
             ...strbase_match_tree,
             ...octal_escape_tree
         },
-        //scanner:escape_scan
         escape_scan,
-        scanner(tokenizer: Tokenizer) {
-            return this.escape_scan(tokenizer, {});
+        scanner(tokenizer: Tokenizer, start: number) {
+            return this.escape_scan(tokenizer, start, {});
         }
     },
     {
-        keys: ["`", "`"], type: "Template",
-        appendTemplateElement(
-            tokenizer: Tokenizer,
-            scope: Record<string, any>,
-            range: [number, number],
-            tail = false
-        ) {
-            let token = tokenizer.getToken(
-                "TemplateElement",
-                range,
-                {
-                    raw: tokenizer.input.slice(range[0], range[1]),
-                    cooked: tokenizer._bak
-                },
-                {
-                    line: scope.prev_line,
-                    column: scope.prev_solumn
-                }
-            );
-            token.tail = tail;
-            scope.content.push(token);
-        },
-        match_tree: {
-            "\\0": { _str: "\0" },
-            "\\1": not_allow_octal_escape,
-            "\\2": not_allow_octal_escape,
-            "\\3": not_allow_octal_escape,
-            "\\4": not_allow_octal_escape,
-            "\\5": not_allow_octal_escape,
-            "\\6": not_allow_octal_escape,
-            "\\7": not_allow_octal_escape,
-            "`": {
-                _state: MATCH_STATUS.NEXT,
-                _next(tokenizer: Tokenizer, scope: Record<string, any>, start: number, error?: string) {
-                    this.appendTemplateElement(tokenizer, scope, [start, tokenizer.index], true);
-                    let token = tokenizer.getToken(
-                        this.type,
-                        [scope.start, tokenizer.index],
-                        this.value,
-                        {
-                            line: scope.start_line,
-                            column: scope.start_column
-                        }
-                    );
-                    token.content = scope.content;
-                    return token;
-                }
-            },
-            "$": {
-                "{": {
-                    _state: MATCH_STATUS.NEXT,
-                    _next(tokenizer: Tokenizer, scope: Record<string, any>, start: number, error) {
-                        if (start < tokenizer.index - 2) {
-                            this.appendTemplateElement(tokenizer, scope, [start, tokenizer.index - 2]);
-                        }
-                        start = tokenizer.index - 2;
-                        let token = tokenizer.getToken(
-                            tokenizer.token_types.Punctuator,
-                            [start, tokenizer.index],
-                            "${}",
-                            {
-                                line: tokenizer.line_number,
-                                column: start - tokenizer.line_start
-                            }
-                        );
-                        let content = tokenizer.scan(token);
-                        if (tokenizer.input[tokenizer.index] === "}") {
-                            tokenizer.index += 1;
-                            scope.prev_line = tokenizer.line_number;
-                            scope.prev_column = tokenizer.index - tokenizer.line_start;
-                            token.range[1] = tokenizer.index;
-                            token.loc.end.line = scope.prev_line;
-                            token.loc.end.column = scope.prev_column;
-                            token.content = content;
-                            scope.content.push(token);
-                            return this.escape_scan(tokenizer, scope, tokenizer.index);
-                        }
-                    }
-                }
-            },
-            ...strbase_match_tree
-        },
+        key: "`",
+        ...template_base,
         escape_scan,
-        scanner(tokenizer: Tokenizer) {
-            let start = tokenizer.index - 1;
-            let start_line = tokenizer.line_number;
-            let start_column = start - tokenizer.line_start;
-            return this.escape_scan(
-                tokenizer,
-                {
-                    content: [],
-                    start,
-                    start_line,
-                    start_column,
-                    prev_line: start_line,
-                    prev_column: start_column
-                }
-            );
+        scanner(tokenizer: Tokenizer, start: number) {
+            template_curly_stack.unshift("`");
+            return this.escape_scan(tokenizer, start);
         }
     },
-    { keys: ['/*', '*/'], type: "Comments", scanner: search_scan },
-    { keys: ['//', '\n'], type: "Comments", scanner: search_scan },
+    {
+        key: "}",
+        ...template_base,
+        filter(tokenizer: Tokenizer) {
+            let env = template_curly_stack[0];
+            return env === "`";
+        }
+    },
+    {
+        key: '/*', bound: '*/', type: "Comments",
+        match_tree: {
+            "*": {
+                "/": {
+                    _state: MATCH_STATUS.END
+                }
+            },
+            "\\*": {
+                "/": {
+                    _state: MATCH_STATUS.END
+                }
+            },
+            [MARKS.EOF]: {
+                _state: MATCH_STATUS.END,
+                _error: "Unexpected token"
+            }
+        },
+        scanner: escape_scan
+    },
+    {
+        key: '//', bound: '\n', type: "Comments",
+        match_tree: {
+            "\n": {
+                _state: MATCH_STATUS.END
+            },
+            "\\\n": {
+                _state: MATCH_STATUS.END
+            },
+            [MARKS.EOF]: {
+                _state: MATCH_STATUS.END
+            }
+        },
+        scanner: escape_scan
+    },
 
-    ["(", ")"], ["[", "]"], ["{", "}"],
+    //["(", ")"], ["[", "]"], ["{", "}"],
+
+    "(", ")", "[", "]", "{", "}",
     ';', '.', '?.',
     '++', '--', '~', '!',
     '**', '*', '/', '%',
@@ -311,7 +286,7 @@ const PUNCTUATORS = [
 ];
 
 const REGEXP_DESCRIPTOR = {
-    keys: ['/', '/'], type: "RegularExpression",
+    key: '/', type: "RegularExpression",
     match_tree: {
         '/': {
             _state: MATCH_STATUS.END,
@@ -337,16 +312,16 @@ const REGEXP_DESCRIPTOR = {
         '\\\n': {
             _state: MATCH_STATUS.ERROR
         },
-        'EOF': {
+        [MARKS.EOF]: {
             _state: MATCH_STATUS.END,
             _error: "Invalid or unexpected token"
         }
     },
     overload: true,
     escape_scan,
-    scanner(tokenizer: Tokenizer, prev_token: Token) {
+    scanner(tokenizer: Tokenizer, start: number) {
         let scope: Record<string, any> = {};
-        let token = this.escape_scan(tokenizer, scope);
+        let token = this.escape_scan(tokenizer, start, scope);
         if (token) {
             token.regex = {
                 pattern: token.value.slice(
@@ -381,7 +356,7 @@ export {
     PRIOR_REGEXP_PUNCTUATORS_TREE,
     PUNCTUATORS_TREE,
     NUMERIC_KEYWORD_MAP,
-    TOKEN_TYPE_MAP, TOKEN_TYPES
+    TOKEN_TYPE_MAPPERS, TOKEN_TYPE_ENUMS
 }
 
 

@@ -1,3 +1,4 @@
+console.time("init");
 import Tokenizer from "./tokenizer"
 import {
     NodeProp,
@@ -5,172 +6,175 @@ import {
     Matched,
     MATCHED_RECORDS,
     MatchedRecords,
-    Token, Node, Watcher,
+    Token, Node, Pipe,
+    Mark as MarkInterface,
     SearchTree, NUMERIC_TYPE, Context, CONTEXT,
-    SourceLocation
+    SourceLocation,
+    PRECEDENCE, Precedence, Validate
 } from "./interfaces";
 import {
     SYNTAX_TREE,
     MATCH_MARKS,
     EXPRESSION_TREE,
-    isExpression, isStatementListItem
+    isExpression, isStatementListItem,
+    token_hooks,
 } from "./syntax/index";
-import { _Context, TYPE_ALIAS, NODES, AWAIT_LIST, Mark } from "./syntax/head";
+import { _Context, TYPE_ALIAS, NODES, AWAIT_LIST, Mark, Cover, attachLocation } from "./syntax/head";
+
+
+import {
+    TOKEN_TYPE_ENUMS
+} from "./lexical/index";
 type Extreme = MatchedRecords;
 type Longest = MatchedRecords;
 for (const cbfun of AWAIT_LIST) {
     cbfun();
 }
+console.timeEnd("init");
+console.log(SYNTAX_TREE);
 
-const { Script, Module, Directive } = NODES;
-function parseIdentifier({ value, range, loc }: Token, tokenizer?: Tokenizer): Node {
-    let name = tokenizer ? tokenizer._bak : value;
-    let identifier = {
-        type: "Identifier", name, range, loc
-    };
-    Object.defineProperty(identifier, "value", {
-        configurable: true,
-        enumerable: false,
-        value: name
-    });
-    return identifier;
+const { Script, Module } = NODES;
 
-}
 
-function getLiteral(parse_value: (token: Token, tokenizer: Tokenizer) => any, token: Token, tokenizer: Tokenizer) {
-    return {
-        type: "Literal",
-        value: parse_value(token, tokenizer),
-        raw: token.value,
-        range: token.range,
-        loc: token.loc
-    }
-}
-
-let tokenizer = new Tokenizer({
-    save_comments: false, token_hooks: {
-        Identifier: parseIdentifier,
-        Numeric: getLiteral.bind(null, (token: Token) => Number(token.value)),
-        Boolean: getLiteral.bind(null, (token: Token) => token.value === "true"),
-        String(token: Token, tokenizer: Tokenizer) {
-            if (!tokenizer._scope.octal) {
-                return {
-                    type: "Literal",
-                    value: tokenizer._bak,
-                    raw: token.value,
-                    range: token.range,
-                    loc: token.loc
-                };
-            }
-            token.str = tokenizer._bak;
-            token.octal = tokenizer._scope.octal;
-            return token;
-        },
-        Null: getLiteral.bind(null, () => null),
-        RegularExpression(token: Token, tokenizer: Tokenizer) {
-            let regex = token.regex;
-            let expr = {
-                type: "Literal",
-                value: null,
-                raw: token.value,
-                regex,
-                range: token.range,
-                loc: token.loc
-            }
-            try {
-                expr.value = new RegExp(regex.pattern, regex.flags);
-            } catch (e) { }
-            return expr;
-        }
-    }
-});
-
-export default class {
-    tokens: Array<Token>;
+export default class extends Tokenizer {
     SYNTAX_TREE = SYNTAX_TREE;
     EXPRESSION_TREE = EXPRESSION_TREE;
-    tokenizer = tokenizer;
     TYPE_ALIAS = TYPE_ALIAS;
     padding_token: Token = {
         type: MATCH_MARKS.BOUNDARY,
         value: MATCH_MARKS.BOUNDARY
     };
     error_logs: Array<any>;
+    save_comments = false;
+    context_stack: Array<Context>;
+    get is_primary_expr_start() {
+        if (this.tokens.length) {
+            let last_node: any = this.tokens[this.tokens.length - 1];
+            return isStatementListItem(last_node)
+                || last_node.type === TOKEN_TYPE_ENUMS.Keyword
+                || (
+                    last_node.type === TOKEN_TYPE_ENUMS.Punctuator
+                    &&
+                    !last_node.hasOwnProperty("content")
+                );
+        } else {
+            return true;
+        }
+    }
+    token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer) => Token> = token_hooks;
     err(...args: any) {
-        //debugger;
+        debugger;
         this.error_logs.push.apply(this.error_logs, args);
     }
     constructor() {
+        super();
     }
     parse(input: string) {
         return this.parseScript(input);
     }
     parseModule(input: string) {
-        return new Module(this._parse(input, CONTEXT.isModule, true, CONTEXT.strict, true), this.range, this.loc);
+        let tokens = this._parse(input, CONTEXT.isModule, true, CONTEXT.strict, true);
+        let module = new Module(tokens);
+        if (tokens.length) {
+            attachLocation(module, tokens[0], tokens[tokens.length - 1]);
+        }
+        return module;
     }
     parseScript(input: string) {
-        return new Script(this._parse(input), this.range, this.loc);
+        let tokens = this._parse(input);
+        let script = new Script(tokens);
+        if (tokens.length) {
+            attachLocation(module, tokens[0], tokens[tokens.length - 1]);
+        }
+        return script;
     }
-    parseBlock(context: Context, token?: Token) {
-        token && (context[CONTEXT.tokens] = token.content);
-        let tokens = context[CONTEXT.tokens];
+    parseExpression(context: Context): Node {
+        context.wrap(CONTEXT.isExpression, true);
+        let res = this.parseNode(EXPRESSION_TREE, context, isExpression);
+        context.unwrap();
+        return res;
+    }
+    parseNode(
+        match_tree: Record<string, any>,
+        context: Context,
+        test: (node: Node) => boolean
+    ): Node {
+        let tokens = context.tokens;
+        this.parseCustom(match_tree, context);
+        let res: Node;
+        if (tokens.length) {
+            let index = 0;
+            if (test(tokens[0])) {
+                index = 1;
+                res = tokens[0];
+            }
+            if (tokens.length > index) {
+                this.err(...tokens.slice(index));
+            }
+        }
+        return res;
+    }
+    parseRangeAsNode(
+        match_tree: Record<string, any>,
+        context: Context,
+        left: number,
+        lexcal_terminator: Validate,
+        test: (node: Node) => boolean
+    ): Node {
+        let res = this.parseRange(match_tree, context, left, lexcal_terminator, test);
+        if (!res.content) {
+            this.err(res);
+        }
+        return res.content;
+    }
+    parseRangeAsExpression(
+        context: Context,
+        left: number,
+        lexcal_terminator: Validate,
+    ): Node {
+        context.wrap(CONTEXT.isExpression, true);
+        let res = this.parseRangeAsNode(EXPRESSION_TREE, context, left, lexcal_terminator, isExpression);
+        context.unwrap();
+        return res;
+    }
+    private _parse(input: string, ...environments: Array<number | any>) {
+        //this.logs = [];
+        this.context_stack = [];
+        this.init(input);
+        let context = _Context(this);
+        environments.length && context.store(...environments);
+        //this.parseBlock(context);
+        let tokens = context.tokens;
         this.parseCustom(
             SYNTAX_TREE,
             context
         );
-        let last_node = tokens[tokens.length - 1];
-        if (last_node && !isStatementListItem(last_node)) {
-            this.err(tokens.pop());
-        }
-        return tokens;
-    }
-    parseExpression(
-        context: Context,
-        token?: Token,
-        match_tree: Record<string, any> = EXPRESSION_TREE
-    ) {
-        return this.parseNode(match_tree, isExpression, context, token);
-    }
-    private range: [number, number];
-    private loc: SourceLocation;
-    private _parse(input: string, ...environments: Array<number | any>) {
-        this.tokens = this.tokenizer.tokenize(input);
-        this.range = [0, this.tokenizer.index];
-        this.loc = {
-            start: {
-                line: 0,
-                column: 0
-            },
-            end: {
-                line: this.tokenizer.line_number,
-                column: this.tokenizer.index - this.tokenizer.line_start
+        if (tokens.length) {
+            if (!isStatementListItem(tokens[tokens.length - 1])) {
+                this.err(tokens.pop());
             }
-        };
-        this.error_logs = this.tokenizer.error_logs;
-        let context = _Context(this, this.tokens);
-        environments.length && context.store(...environments);
-        this.parseBlock(context);
+        }
         if (this.error_logs.length) {
             console.warn("error:", this.error_logs);
         }
+        //console.log("logs:", this.logs);
         return this.tokens;
     }
     parseCustom(
         root: Record<string, any>,
         context: Context,
         begin: number = 0,
-        hook?: Function
+        test?: Function
     ) {
         let point = context.store(CONTEXT.begin, begin);
         let cursor: number = begin - 1;
-        let tokens = context[CONTEXT.tokens];
         let backflow_tape: Array<number> = new Array(begin);
         backflow_tape.push(cursor);
         let extreme: Extreme;
         let state: number;
+        this.context_stack.unshift(context);
         while (true) {
-            if (cursor < tokens.length) {
-                //debugger;
+            if (cursor < begin || context.getToken(cursor)) {
                 if (
                     !(
                         extreme
@@ -192,14 +196,23 @@ export default class {
                         backflow_tape,
                         extreme?.[MATCHED_RECORDS.right]
                     );
+                    //longest && this.logs.push("walk", longest[MATCHED_RECORDS.left], longest[MATCHED_RECORDS.right], longest[MATCHED_RECORDS.matched][MATCHED.wrapper].name);
                     if (longest) {
+                        let longest_precedence = longest[MATCHED_RECORDS.precedence];
+                        let extreme_precedence = extreme && extreme[MATCHED_RECORDS.precedence];
                         if (
-                            !extreme
-                            || !(
-                                extreme[MATCHED_RECORDS.precedence] > longest[MATCHED_RECORDS.precedence]
-                                || extreme[MATCHED_RECORDS.precedence] === Number(longest[MATCHED_RECORDS.precedence]) //左结合
+                            (//如果该记录优先级为true，则立即处理
+                                longest_precedence[PRECEDENCE.VALUE] !== true
+                                || (extreme = longest, false)
+                            ) && (
+                                !extreme_precedence
+                                || !(
+                                    extreme_precedence[PRECEDENCE.VALUE] > longest_precedence[PRECEDENCE.VALUE]
+                                    || extreme_precedence[PRECEDENCE.RIGHT_ASSOCIATIVE] === longest_precedence[PRECEDENCE.VALUE] //左结合
+                                )
                             ) || !(state = this.finallize(context, extreme))
                         ) {
+
                             extreme = longest;
                             //cursor += 1;
                             //也可以单步步进，不过这样更效率一些也和当前收集器无冲突
@@ -220,9 +233,14 @@ export default class {
                 break;
             }
             if (extreme) {
-                if (hook && extreme[MATCHED_RECORDS.left] <= begin && hook(tokens[begin])) {
+                if (
+                    test
+                    && extreme[MATCHED_RECORDS.left] <= begin
+                    && test(context.getToken(begin))
+                ) {
                     context.restore(point);
-                    return tokens[begin];
+                    this.context_stack.shift();
+                    return context.getToken(begin);
                 }
                 cursor = extreme[MATCHED_RECORDS.left];
             }
@@ -231,140 +249,158 @@ export default class {
             extreme = undefined;
             backflow_tape.splice(cursor + 1, backflow_tape.length - (cursor + 1));
         }
+        this.context_stack.shift();
         context.restore(point);
     }
-    parseNode(
+    parseRange(
         match_tree: Record<string, any>,
-        test: (node: Node) => boolean,
         context: Context,
-        token?: Token
+        left: number,
+        lexcal_terminator: Validate,
+        test?: (node: Node) => boolean,
     ) {
-        let tokens = token
-            ? (context[CONTEXT.tokens] = token.content)
-            : context[CONTEXT.tokens];
-        context.wrap(CONTEXT.isExpression, true);
+        let tokens = context.tokens;
+        this.terminator_stack.unshift(lexcal_terminator);
         this.parseCustom(
             match_tree,
-            context
+            context,
+            left + 1
         );
-        context.unwrap();
-        if (tokens.length) {
-            if (test(tokens[0])) {
-                tokens.length > 1 && this.err(...tokens.slice(1));
-                return tokens[0];
+        this.terminator_stack.shift();
+        let before_token = tokens[left];
+        let after_token = tokens[tokens.length - 1];
+        let value = before_token.value;
+        let end = tokens.length - 1;
+        if (lexcal_terminator(after_token)) {
+            value += after_token.value;
+        } else {
+            end += 1;
+            this.err(before_token);
+        }
+        let content: any, next = left + 1;
+        if (test) {
+            if (test(tokens[next])) {
+                content = tokens[next];
+                next += 1;
             }
-            this.err(...tokens);
-        } else if (token) {
-            this.err(token);
+            if (next < end) {
+                this.err(...this.tokens.splice(next, end - next));
+            }
+        } else {
+            content = tokens.splice(next, end - next);
         }
-    }
-    parseIdentifier = parseIdentifier;
-    parseKeyword({ value, range, loc }: Token): Node {
-        return {
-            type: "Keyword",
+        let res: Token = {
+            type: TOKEN_TYPE_ENUMS.Punctuator,
             value,
-            range,
-            loc
+            content
         };
+        attachLocation(res, before_token, after_token);
+        tokens.splice(left, tokens.length - left, res);
+        return res;
     }
-    parseDirective(node: Node) {
-        let expression = node.expression;
-        if (
-            expression
-            && expression.type === "Literal"
-            && typeof expression.value === "string"
-            && expression.raw.length > 2
-        ) {
-            return new Directive(
-                node.type,
-                node.expression,
-                expression.raw.slice(1, -1),
-                node.range,
-                node.loc
-            );
-        }
-        return node;
-    }
-
     walk(
         root: Record<string, any>,
         context: Context,
-        index: number,
+        start: number,
         backflow_tape: Array<number>,
         minimum: number
     ): Longest {
         let padding_token = this.padding_token;
         let TYPE_ALIAS = this.TYPE_ALIAS;
-        let tokens = context[CONTEXT.tokens];
+        let tokens = context.tokens;
+        let begin = context[CONTEXT.begin];
         //let steps: Array<number> = [];
-        return next(
+        return explore(
             root,
-            index >= context[CONTEXT.begin] ? tokens[index] : padding_token,
-            index,
-            index
+            start
         );
-
-        function next(parent: Record<string, any>, token: Token, start: number, end: number): Longest {
-            let has_backflow = false;
-            if (backflow_tape.length <= end + 1) {
-                has_backflow = true;
-                backflow_tape.push(start);
+        function get_records(matched: Matched, end: number): MatchedRecords {
+            if (
+                !matched[MATCHED.filter]
+                || matched[MATCHED.filter](context, start, end)
+            ) {
+                return [
+                    matched[MATCHED.precedence],
+                    start,
+                    end,
+                    matched
+                ];
             }
-            let alias = TYPE_ALIAS[token.type];
-            if (!alias) {
-                return explore(token.type);
-            } else {
-                let index = 0, longest: Extreme;
-                while (index < alias.length) {
-                    longest = explore(alias[index++]) || longest;
-                }
-                return longest;
-            }
+        }
+        function explore(parent: Record<string, any>, index: number): Longest {
 
-            function explore(type: string | number): Longest {
-                let node: Record<string, any>, next_token: Record<string, any>;
-                let res: Longest, matched: Matched, matched_node: Record<string, any>;
-                let value_node: Record<string, any>, type_node: Record<string, any>;
-                if (!(node = parent[type])) {
-                    return;
-                }
-                next_token = tokens[end + 1] || (end < tokens.length && padding_token);//末尾溢出一个填充节点
-                value_node = node[token.value];
-                if (!(
-                    next_token && value_node
-                    && (res = next(value_node, next_token, start, end + 1))
-                )) {
-                    type_node = node[MATCH_MARKS.TYPE_ONLY];
-                    if (!(
-                        next_token && type_node
-                        && (res = next(type_node, next_token, start, end + 1))
-                    )) {
-                        if (
-                            !(end <= minimum)
-                            && (
-                                matched =
-                                (matched_node = value_node) && matched_node[MATCH_MARKS.MATCH_END]
-                                || (matched_node = type_node) && matched_node[MATCH_MARKS.MATCH_END]
-                            )
-                        ) {
-                            if (
-                                !matched[MATCHED.filter]
-                                || matched[MATCHED.filter](context, start, end)
-                            ) {
-                                minimum = end;
-                                res = [
-                                    matched[MATCHED.precedence],
-                                    start,
-                                    end,
-                                    matched
-                                ];
-                            } else if (has_backflow && end > start) {
-                                backflow_tape.splice(end + 1, backflow_tape.length - end - 1);
-                            }
-                        }
+            let res: Longest;
+            let matched: Matched;
+            if (parent[MATCH_MARKS.WALKER]) {
+                parent[MATCH_MARKS.WALKER](context, index - 1);
+            }
+            if (parent[MATCH_MARKS.TERMINAL]) {
+                if (!(index - 1 <= minimum)) {
+                    matched = parent[MATCH_MARKS.MATCH_END];
+                    if (matched && (res = get_records(matched, index - 1))) {
+                        minimum = index - 1;
                     }
                 }
                 return res;
+            }
+
+            let token = index >= begin
+                ? context.getToken(index) || (index <= tokens.length && padding_token)
+                : padding_token;
+            if (!token) {
+                return;
+            }
+            let has_backflow = false;
+            if (backflow_tape.length <= index + 1) {
+                has_backflow = true;
+                backflow_tape.push(start);
+            }
+            let matched_node: Record<string, any>;
+            let alias = TYPE_ALIAS[token.type];
+            let cursor = 0, length = 1, type: string | number;
+            let longest: Longest;
+            let node: Record<string, any>;
+            let value_node: Record<string, any>, type_node: Record<string, any>;
+            if (alias) {
+                length = alias.length;
+                type = alias[cursor];
+            } else {
+                type = token.type;
+            }
+            while (true) {
+                if (node = parent[type]) {
+                    res = undefined;
+                    if (
+                        !(
+                            (value_node = node[token.value])
+                            && (res = explore(value_node, index + 1))
+                        )
+                        && !(
+                            (type_node = node[MATCH_MARKS.TYPE_ONLY])
+                            && (res = explore(type_node, index + 1))
+                        )
+                        && !(index <= minimum)
+                    ) {
+                        if (
+                            matched = (matched_node = value_node) && matched_node[MATCH_MARKS.MATCH_END]
+                            || (matched_node = type_node) && matched_node[MATCH_MARKS.MATCH_END]
+                        ) {
+                            if (
+                                (res = get_records(matched, index))
+                            ) {
+                                minimum = index;
+                            } else if (has_backflow && index > start) {
+                                backflow_tape.splice(index + 1, backflow_tape.length - index - 1);
+                            }
+                        }
+                    }
+                    longest = res || longest;
+                }
+                if (++cursor >= length) {
+                    return longest;
+                } else {
+                    type = alias[cursor];
+                }
             }
         }
     }
@@ -372,51 +408,60 @@ export default class {
         let left = context[CONTEXT.left];
         let right = context[CONTEXT.right];
         let matched = context[CONTEXT.matched];
-        let tokens = context[CONTEXT.tokens];
+        let tokens = context.tokens;
         let begin = context[CONTEXT.begin];
         let node: any = new matched[MATCHED.wrapper]();
         let length = tokens.length;
         let start = left, end = right < length ? right : length - 1;
-        let offset = left, key: string, watchers: Array<Watcher>;
-
+        let offset = left, key: string | Cover | Mark, pipes: Array<Pipe>, nth: number;
+        let token: any, res: any;
         context[CONTEXT.collected] = node;
+
+        function restore_volatile() {
+            context[CONTEXT.left] = left;
+            context[CONTEXT.right] = right;
+            context[CONTEXT.matched] = matched;
+            context[CONTEXT.collected] = node
+        }
+
         for (const prop of matched[MATCHED.props]) {
-            if (!(prop instanceof Mark)) {
-                [key, watchers] = (prop as any);
-                let token: Token = offset >= begin && offset < length ? tokens[offset] : null;
-                if (key) {
-                    if (token && end < offset) {
+            [key, nth, pipes] = prop as any;
+            if (key instanceof Mark) {
+                token = key.data(context, offset);
+                restore_volatile();
+                if (token === undefined) {
+                    continue;
+                }
+                key = key.key;
+            } else {
+                token = offset >= begin && offset < length ? tokens[offset] : null;
+
+                for (let i in pipes) {
+                    res = pipes[i](context, token, offset);
+                    res === undefined || (token = res);
+                    restore_volatile();
+                }
+                if (key instanceof Cover) {
+                    if (key.value === null) {
+                        if (offset === start) {
+                            offset < end && (start = offset + 1);
+                        } else if (offset > begin && offset - 1 < end) {
+                            end = offset - 1;
+                        }
+                    } else if (offset < length && end < offset) {
                         end = offset;
                     }
-                    if (node[key] === undefined) {
-                        node[key] = token;
-                    } else {
-                        if (node[key] instanceof Array) {
-                            node[key].push(token)
-                        } else {
-                            node[key] = [node[key], token];
-                        }
-                    }
-                } else if (key === null) {
-                    if (offset === start) {
-                        offset < end && (start = offset + 1);
-                    } else if (offset > begin && offset - 1 < end) {
-                        end = offset - 1;
-                    }
-                } else if (token && end < offset) {
+                    offset += 1;
+                    continue;
+                } else if (offset < length && end < offset) {
                     end = offset;
                 }
-                for (let i in watchers) {
-                    watchers[i](context, token);
-                    context[CONTEXT.left] = left;
-                    context[CONTEXT.right] = right;
-                    context[CONTEXT.matched] = matched;
-                    context[CONTEXT.tokens] = tokens;
-                    context[CONTEXT.collected] = node
-                }
                 offset += 1;
+            }
+            if (nth <= 1) {
+                node[key] = nth === 0 ? token : [token];
             } else {
-                node[prop.key] = prop.value;
+                node[key].push(token);
             }
         }
 
@@ -424,28 +469,28 @@ export default class {
 
         let start_token = tokens[start];
         let end_token = tokens[end];
-        node.range = [start_token.range[0], end_token.range[1]];
-        node.loc = {
-            start: start_token.loc.start,
-            end: end_token.loc.end
-        }
+        attachLocation(node, start_token, end_token);
         context[CONTEXT.start] = start;
         context[CONTEXT.end] = end;
         return node;
+    }
+    getToken(index: number) {
+        return this.tokens.length > index ? this.tokens[index] : this.nextToken();
     }
     finallize(
         context: Context,
         record: Extreme
     ) {
-        let [_, left, right, matched/*, steps*/] = record;
+        let [, left, right, matched/*, steps*/] = record;
         let validator = matched[MATCHED.validator];
         let collected: any;
         let start: number, end: number;
         context[CONTEXT.left] = left;
         context[CONTEXT.right] = right;
         context[CONTEXT.matched] = matched;
-        let tokens = context[CONTEXT.tokens];
+        let tokens = context.tokens;
         let handler = matched[MATCHED.handler];
+        //this.logs.push("finallize", left, right, matched[MATCHED.wrapper].name);
         if (!validator || (collected = validator(context)) === true) {
             collected = this.createNode(context);
             start = context[CONTEXT.start];
@@ -457,17 +502,13 @@ export default class {
             start = context[CONTEXT.start];
             end = context[CONTEXT.end];
         }
-        context[CONTEXT.tokens] = tokens;
         if (!collected) {
             return collected === undefined || collected === false
                 ? 0
                 : (collected === null ? 1 : -1);
         }
         //debugger;
-        /*if (tokens === this.tokens) {
-            debugger;
-        }*/
-
+        //this.logs.push("finallize", collected);
         let length = end - start + 1;
         if (collected instanceof Array) {
             tokens.splice(start, length, ...collected);

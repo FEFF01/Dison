@@ -5,9 +5,12 @@ import {
 import {
     MATCH_MARKS,
     createMatchTree,
-    _Option, _Or, _Series, _NonCollecting, _Mark
+    _Option, _Or, _Series, _NonCollecting, _Mark,
+    reinterpretIdentifierAsKeyword,
+    reinterpretKeywordAsIdentifier,
 } from './head'
 import Parser from '../parser'
+import Tokenizer from "../tokenizer"
 
 
 import {
@@ -107,12 +110,15 @@ function get_inner_group(token: Token) {
 function extract_success(parser: Parser, nodes: Array<Node>) {
     let res: Array<Node> = nodes;
     if (nodes.length) {
+        let index = 0;
         if (nodes[0].type === "Success") {
+            index = 1;
             res = nodes[0].content;
-            nodes.length > 1 && parser.err(...nodes.slice(1));
         } else {
             res = [];
-            parser.err(...nodes);
+        }
+        if (nodes.length > index) {
+            parser.err(...nodes.slice(index));
         }
     }
     return res;
@@ -122,9 +128,11 @@ function parse_and_extract(match_tree: Record<string, any>, context: Context, no
     let [, parser] = context;
     let tokens = node.content;
     if (tokens.length) {
-        context[CONTEXT.tokens] = tokens;
+        context.wrap(CONTEXT.tokens, tokens)
+        //context[CONTEXT.tokens] = tokens;
         parser.parseCustom(match_tree, context);
         tokens = extract_success(parser, tokens)
+        context.unwrap();
     }
     return tokens;
 }
@@ -134,7 +142,53 @@ function isCommaSeparator(node) {
 }*/
 
 
+function getLiteral(parse_value: (token: Token, tokenizer: Tokenizer) => any, token: Token, tokenizer: Tokenizer) {
+    return {
+        type: "Literal",
+        value: parse_value(token, tokenizer),
+        raw: token.value,
+        range: token.range,
+        loc: token.loc
+    }
+}
+
+let getStringLiteral = getLiteral.bind(null, (token: Token, tokenizer: Tokenizer) => tokenizer._bak);
+let getRegularLiteral = getLiteral.bind(null, (token: Token, tokenizer: Tokenizer) => {
+    let regex = token.regex;
+    try {
+        return new RegExp(regex.pattern, regex.flags);
+    } catch (e) {
+        return null;
+    }
+});
+
+let token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer | Parser) => Token> = {
+    Keyword(token: Token, parser: Parser) {
+        let context = parser.context_stack[0];
+        if (!context[CONTEXT.allowYield] && token.value === "yield") {
+            return reinterpretKeywordAsIdentifier(token);
+        }
+        return token;
+    },
+    Identifier: reinterpretKeywordAsIdentifier,
+    Numeric: getLiteral.bind(null, (token: Token) => Number(token.value)),
+    Boolean: getLiteral.bind(null, (token: Token) => token.value === "true"),
+    String(token: Token, parser: Parser) {
+        token = getStringLiteral(token, parser);
+        if (parser._scope.octal && parser.context_stack[0][CONTEXT.strict]) {
+            parser.err(token);
+        }
+        return token;
+    },
+    Null: getLiteral.bind(null, () => null),
+    RegularExpression(token: Token, tokenizer: Tokenizer) {
+        let res = getRegularLiteral(token, tokenizer);
+        res.regex = token.regex;
+        return res;
+    }
+};
 export {
+    token_hooks,
     parse_next_statement,
     get_inner_group,
     extract_success,

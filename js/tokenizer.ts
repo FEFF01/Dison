@@ -4,13 +4,14 @@ import {
     PRIOR_REGEXP_PUNCTUATORS_TREE,
     PUNCTUATORS_TREE,
     NUMERIC_KEYWORD_MAP,
-    TOKEN_TYPE_MAP, TOKEN_TYPES
+    TOKEN_TYPE_MAPPERS, TOKEN_TYPE_ENUMS
 } from "./lexical/index";
 import Character from './character'
 import {
-    Position, SourceLocation, Token, SearchTree, NUMERIC_TYPE
+    Position, SourceLocation, Token, SearchTree, NUMERIC_TYPE, Validate
 } from "./interfaces";
 
+console.log(23, TOKEN_TYPE_ENUMS,TOKEN_TYPE_MAPPERS);
 
 export default class extends Character {
     constructor(options?: Record<string, any>) {
@@ -18,28 +19,57 @@ export default class extends Character {
         for (const key in options) {
             this[key] = options[key];
         }
+        //console.log(333, TOKEN_TYPES,TOKEN_TYPE_MAP);
     }
-    public token_types = TOKEN_TYPES;
-    public token_hooks: Record<string, (token: Token) => Token> = {};
+    tokens: Array<Token>;
+    public token_hooks: Record<string, (token: Token, tokenizer: this) => Token> = {};
     public line_number: number;
     public line_start: number;
     public save_comments: boolean = true;
-    public parent_token: Token;
     public error_logs: Array<any>;
+    public terminator_stack: Array<Validate>;
     err(...args: any) {
         //debugger;
         this.error_logs.push.apply(this.error_logs, arguments);
     }
-    tokenize(input: string): Array<Token> {
+    init(input: string) {
         this.line_number = 0;
         this.line_start = 0;
         this.index = 0;
         this.input = input;
         this.end = this.input.length;
         this.error_logs = [];
-        return this.scan(null, true);
+        this.tokens = [];
+        this.terminator_stack = [];
     }
-    getToken(
+    tokenize(input: string): Array<Token> {
+        this.init(input);
+        while (this.nextToken());
+        return this.tokens;
+    }
+    nextToken() {
+        while (
+            this.index < this.end
+            && (
+                this.terminator_stack.length === 0
+                || this.tokens.length === 0
+                || !this.terminator_stack[0](this.tokens[this.tokens.length - 1])
+            )
+        ) {
+            let token = this._nextToken();
+            if (token) {
+                let hook = this.token_hooks[token.type];
+                hook && (token = hook(token, this));
+                if (this.save_comments || token.type !== TOKEN_TYPE_ENUMS.Comments) {
+                    this.tokens.push(token);
+                    return token;
+                }
+            } else if (this.index < this.end) {
+                this.err(this.createToken("error", [this.index, ++this.index]))
+            }
+        }
+    }
+    createToken(
         type: string | number,
         range: [number, number],
         value: any = this.input.slice(range[0], range[1]),
@@ -60,7 +90,6 @@ export default class extends Character {
                 start, end
             }
         };
-
     }
     private match(node: SearchTree) {
         let start = this.index, end = this.index;
@@ -69,35 +98,19 @@ export default class extends Character {
             prev_node = node;
             node = prev_node[this.input[end++]];
         } while (node)
-        if (prev_node.__) {
-            let target = prev_node.__;
+        let target: any = prev_node.__;
+        if (target && (target.type || (target = target(this)))) {
             this.index = end - 1;
-            if (target.scanner) {
-                return target.scanner(this);
-            } else {
-                let token = this.getToken(
-                    this.token_types[target.type],
-                    [start, end - 1],
-                    target.value
+            return target.scanner ?
+                target.scanner(this, start) :
+                this.createToken(
+                    TOKEN_TYPE_ENUMS[target.type],
+                    [start, this.index],
+                    target.key
                 );
-                let bound = target.keys[1];
-                if (bound) {
-                    token.content = this.scan(token/*target.type*/);
-                    if (this.input.slice(this.index, this.index + bound.length) === bound) {
-                        this.index += bound.length;
-                    } else {
-                        this.err(token);
-                        token.error = "error";
-                    }
-                    token.range[1] = this.index;
-                    token.loc.end.line = this.line_number;
-                    token.loc.end.column = this.index - this.line_start;
-                }
-                return token;
-            }
         }
     }
-    private nextIdentifier(tokens: Array<Token>): Token | void {
+    private nextIdentifier(): Token | void {
         let length = this.inIdentifierStart();
         let token: Token;
         if (length > 0) {
@@ -108,9 +121,9 @@ export default class extends Character {
                 this.index += length;
                 length = this.inIdentifierPart();
             } while (length > 0)
-            let type = TOKEN_TYPE_MAP[" " + str];
-            token = this.getToken(
-                this.token_types[type || "Identifier"],
+            let type = TOKEN_TYPE_MAPPERS[" " + str];
+            token = this.createToken(
+                TOKEN_TYPE_ENUMS[type || "Identifier"],
                 [start, this.index]
             );
             this._bak = str;
@@ -119,110 +132,30 @@ export default class extends Character {
             }
         }
         if (length < 0) {
-            this.err(this.getToken("error", [this.index, this.index -= length]));
+            this.err(this.createToken("error", [this.index, this.index -= length]));
         }
         return token;
     }
-    private nextRegexp(tokens: Array<Token>) {
-        let prev_token = tokens[tokens.length - 1];
-        let match_tree = PRIOR_REGEXP_PUNCTUATORS_TREE;
-        if (prev_token) {
-            if (prev_token.type === this.token_types.Punctuator) {
-                //https://github.com/jquery/esprima/blob/master/src/tokenizer.ts
-                switch (prev_token.value) {
-                    case "[]":
-                        match_tree = PUNCTUATORS_TREE;
-                        break;
-                    case "()":
-                        let keyword_token = tokens[tokens.length - 2];
-                        if (
-                            !keyword_token
-                            || ["if", "while", "for", "with"].indexOf(keyword_token.value) < 0
-                        ) {
-                            match_tree = PUNCTUATORS_TREE;
-                        }
-                        break;
-                    case "{}":
-                        let length = tokens.length;
-                        for (
-                            let checks of [
-                                [
-                                    [4, "function"],
-                                    [
-                                        5,
-                                        "async",
-                                        function () {
-                                            return tokens[length - 4].loc.start.line
-                                                === tokens[length - 5].loc.end.line;
-                                        }
-                                    ]
-                                ],
-                                [
-                                    [5, "function"],
-                                    [
-                                        6,
-                                        "async",
-                                        function () {
-                                            return tokens[length - 5].loc.start.line
-                                                === tokens[length - 6].loc.end.line;
-                                        }
-                                    ]
-                                ],
-                                [[2, "class"]],
-                                [[3, "class"]],
-                                [[5, "class"]],
-                            ] as Array<Array<[number, string, () => boolean | undefined]>>
-                        ) {
-                            let index: number;
-                            let target_token: Token;
-                            for (let check of checks) {
-                                target_token = tokens[length - check[0]];
-                                if (
-                                    target_token
-                                    && target_token.value === check[1]
-                                    && (!check[2] || check[2]())
-                                ) {
-                                    index = check[0];
-                                } else {
-                                    break;
-                                }
-                            }
-                            if (index !== undefined) {
-                                if (
-                                    this.parent_token
-                                    && ["()", "[]", "${}"].indexOf(this.parent_token.value) >= 0
-                                    || this.isFollowingAnExpression(tokens[length - index - 1])
-                                ) {
-                                    match_tree = PUNCTUATORS_TREE
-                                }
-                                break;
-                            }
-                        }
-                        break;
-
-                }
-            } else if (
-                prev_token.type !== this.token_types.Keyword//&& prev_token.value !== "let"
-            ) {
-                match_tree = PUNCTUATORS_TREE;
-            }
+    get maybe_regex() {
+        if (this.input[this.index] === "/") {
+            let is_primary_expr_start = (this as any).is_primary_expr_start;
+            return is_primary_expr_start !== undefined
+                ? is_primary_expr_start
+                : !this.tokens.length || this.tokens[this.tokens.length - 1].type === TOKEN_TYPE_ENUMS.Punctuator;
         }
-        return this.match(match_tree);
     }
-    private nextPunctuator(tokens: Array<Token>): Token | void {
-        return this.input[this.index] !== "/"
-            ? this.match(PUNCTUATORS_TREE)
-            : this.nextRegexp(tokens);
+    private nextPunctuator(): Token | void {
+        return this.match(!this.maybe_regex ? PUNCTUATORS_TREE : PRIOR_REGEXP_PUNCTUATORS_TREE);
     }
 
-    private nextNumeric(tokens: Array<Token>): Token | void {
+    private nextNumeric(): Token | void {
         let start = this.index;
         let ch = this.input.charCodeAt(this.index);
         let number: number;
         let flags = NUMERIC_TYPE.DECIMAL;
         let _get_token = () => {
             this._bak = flags & NUMERIC_TYPE.OCTAL ? (flags & ~NUMERIC_TYPE.DECIMAL) : flags;
-            return this.getToken(this.token_types.Numeric, [start, this.index]);
+            return this.createToken(TOKEN_TYPE_ENUMS.Numeric, [start, this.index]);
         }
         let _get_error = (message: string = "Invalid or unexpected token") => {
             let error = _get_token();
@@ -306,7 +239,7 @@ export default class extends Character {
                 : _get_error();
         }
     }
-    private nextToken(tokens: Array<Token>): Token | void {
+    private _nextToken(): Token | void {
         for (let cp: number; this.index < this.end; this.index++) {
             cp = this.input.charCodeAt(this.index);
             switch (true) {
@@ -317,37 +250,11 @@ export default class extends Character {
                     this.line_start = this.index + 1;
                     break;
                 default:
-                    return this.nextIdentifier(tokens) ||
-                        this.nextNumeric(tokens) ||
-                        this.nextPunctuator(tokens);
+                    return this.nextIdentifier() ||
+                        this.nextNumeric() ||
+                        this.nextPunctuator();
             }
         }
-    }
-    scan(parent_token: Token, full_match = false) {
-        let parent_token_bak = this.parent_token;
-        this.parent_token = parent_token;
-        let content = [];
-        let proxy_hook: (token: Token, tokenizer: this) => Token;
-        let token: Token | void;
-        while (this.index < this.end) {
-            token = this.nextToken(content);
-            if (token) {
-                proxy_hook = this.token_hooks[token.type];
-                proxy_hook && (token = proxy_hook(token, this));
-                if (token.type !== this.token_types.Comments) {
-                    content.push(token);
-                } else {
-                    this.save_comments && content.push(token);
-                }
-            } else if (!full_match) {
-                break;
-            } else if (this.index < this.end) {
-                //debugger;
-                this.err(this.getToken("error", [this.index, ++this.index]))
-            }
-        }
-        this.parent_token = parent_token_bak;
-        return content;
     }
 }
 

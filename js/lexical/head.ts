@@ -14,129 +14,167 @@ function createSearchTree(
         let node = root;
         switch (true) {
             case typeof item === "string":
-                item = [item];
-            case item instanceof Array:
                 item = {
                     type: "Punctuator",
-                    keys: item,
-                    value: item.join("")
+                    key: item,
                 }
                 break;
             default:
                 item.type === undefined && (item.type = "Punctuator");
-                item.value === undefined && (item.value = item.keys.join(""));
                 break;
         }
-        if (~block_list.indexOf(item.keys[0])) {
+        if (~block_list.indexOf(item.key)) {
             continue;
         }
-        for (const part of item.keys[0]) {
+        for (const part of item.key) {
             node = node[part] || (node[part] = {});
         }
         if (node.__ && !item.overload) {
-            console.warn("conflict:", node, node.__, item);
+            let next_item = node.__;
+            let curr_item = item;
+            if (typeof next_item === "function") {
+                if (curr_item.filter) {
+                    node.__ = function (tokenizer: Tokenizer) {
+                        return curr_item.filter(tokenizer) ? curr_item : next_item(tokenizer);
+                    }
+                } else {
+                    node.__ = function (tokenizer: Tokenizer) {
+                        return next_item(tokenizer) || curr_item;
+                    }
+                }
+                continue;
+            } else if (curr_item.filter) {
+                node.__ = function (tokenizer: Tokenizer) {
+                    return curr_item.filter(tokenizer) ? curr_item : next_item;
+                }
+                continue;
+            } else {
+                console.warn("conflict:", node, node.__, item);
+            }
         }
-        node.__ = item;
+        node.__ = item.filter ?
+            function (tokenizer: Tokenizer) { return item.filter(tokenizer) && item; } :
+            item;
     }
     return root;
 }
 
+
+const enum MARKS {
+    EOF = "",
+    ESCAPE = "\\"
+}
 function escape_scan(
     tokenizer: Tokenizer,
+    start: number,
     scope?: Record<string, any>,
-    start: number = tokenizer.index - this.keys[0].length
 ) {
     let error: string;
     let line_number = tokenizer.line_number;
     let line_start = tokenizer.line_start;
-    let str = "";
     let root = this.match_tree;
     let node = root;
-    let _next = () => {
-        let token: Token;
-        let res: string | boolean;
+    let path = "";
+    let str = "";
+    let char: string;
+    let backslash_count = 0;
+    let token: Token;
+    let self = this;
+
+    while (char = tokenizer.input[tokenizer.index++]) {
+        let has_escape = backslash_count % 2;
+        if (char === MARKS.ESCAPE) {
+            backslash_count += 1;
+            if (has_escape) {
+                path += char;
+                node = node[MARKS.ESCAPE]
+            }
+        } else {
+            path += char;
+            backslash_count = 0;
+            if (tokenizer.isLineTerminator(char.charCodeAt(0))) {
+                node = node[
+                    has_escape
+                        ? `${MARKS.ESCAPE}\n`
+                        : "\n"
+                ];
+                if (node && node._state === MATCH_STATUS.END) {
+                    tokenizer.index -= 1;
+                    if ((token = _next())) {
+                        return token;
+                    }
+                    tokenizer.index += 1;
+                }
+                tokenizer.line_number += 1;
+                tokenizer.line_start = tokenizer.index;
+            } else {
+                node = node[!has_escape ? char : MARKS.ESCAPE + char];
+            }
+        }
+        if (node && (token = _next())) {
+            return token;
+        }
+        if (!node) {
+            str += path;
+            node = root;
+            path = "";
+        }
+    }
+    if ((node = root[MARKS.EOF])) {
+        return _next();
+    } else {
+        tokenizer.err(_finally());
+    }
+    function _finally() {
+        tokenizer._scope = scope;
+        tokenizer._bak = str;
+        return tokenizer.createToken(
+            self.type,
+            [start, tokenizer.index],
+            undefined, { line: line_number, column: start - line_start }
+        );
+    }
+    function _next() {
+        node._error && (error = node._error);
         switch (node._state) {
             case MATCH_STATUS.END:
-                if (!node._end || (res = node._end.call(this, tokenizer, scope, start, error)) === true) {
-                    token = tokenizer.getToken(
-                        this.type,
-                        [start, tokenizer.index],
-                        undefined, { line: line_number, column: start - line_start }
-                    );
-                    tokenizer._scope = scope;
-                    tokenizer._bak = str;
+                if (
+                    !node._end
+                    || node._end(tokenizer, scope, start, error)
+                ) {
+                    let token = _finally();
                     if (node._error || error) {
                         token.error = (node._error || error);
                         tokenizer.err(token);
                     }
                     return token;
-                } else if (typeof res === "string") {
-                    str += res;
                 }
                 break;
             case MATCH_STATUS.ATTACH:
-                res = node._attach.call(this, tokenizer, scope, start, error);
-                if (res !== false) {
-                    res && (str += res);
-                    break;
-                }
+                let res = node._attach(tokenizer, scope, start, error);
+                res && (path = res);
+                break;
             case MATCH_STATUS.ERROR:
-                error = node._message || "Invalid or unexpected token";
+                error || (error = "Invalid or unexpected token");
             case MATCH_STATUS.NEXT:
                 if (node._next) {
                     tokenizer._bak = str;
-                    return node._next.call(this, tokenizer, scope, start, error);
+                    return node._next(tokenizer, scope, start, error);
                 }
                 break;
             default:
                 if (node._str === undefined) {
                     return;
+                } else {
+                    path = node._str;
                 }
-                str += node._str;
         }
-        node = root;
-    }
-    for (
-        let char = tokenizer.input[tokenizer.index++],
-        backslash_count = 0,
-        token: Token;
-        char;
-        char = tokenizer.input[tokenizer.index++]
-    ) {
-        let has_escape = backslash_count % 2;
-        if (char === "\\") {
-            backslash_count += 1;
-            has_escape && (node = node["\\"]);
-        } else {
-            backslash_count = 0;
-            if (tokenizer.isLineTerminator(char.charCodeAt(0))) {
-                tokenizer.line_number += 1;
-                tokenizer.line_start = tokenizer.index;
-                node = node[
-                    has_escape
-                        ? "\\\n"
-                        : "\n"
-                ];
-            } else {
-                node = node[!has_escape ? char : "\\" + char];
-            }
-        }
-
-        if (!node) {
-            str += char;
-            node = root;
-        } else if ((token = _next())) {
-            return token;
-        }
-    }
-    if (root.EOF) {
-        node = root.EOF;
-        return _next();
+        node = null;
     }
 }
-function search_scan(tokenizer: Tokenizer) {
-    let start = tokenizer.index - this.keys[0].length;
-    let bound = this.keys[1];
+/*
+function search_scan(tokenizer: Tokenizer, start: number) {
+    let bound = this.bound;
     let start_line = tokenizer.line_number;
     let start_column = start - tokenizer.line_start;
     let matched_count = 0;
@@ -161,7 +199,7 @@ function search_scan(tokenizer: Tokenizer) {
         }
         matched_count = 0;
     }
-    let token = tokenizer.getToken(
+    let token = tokenizer.createToken(
         this.type,
         [start, tokenizer.index],
         undefined,
@@ -172,7 +210,7 @@ function search_scan(tokenizer: Tokenizer) {
         tokenizer.err(token);
     }
     return token;
-}
+}*/
 export {
-    createSearchTree, escape_scan, search_scan
+    createSearchTree, escape_scan, MARKS
 }

@@ -1,6 +1,7 @@
 import { Token, Node, Context } from '../interfaces';
 import { MATCH_MARKS } from './head';
 import Parser from '../parser';
+import Tokenizer from "../tokenizer";
 import { EXPRESSION_TREE } from './expression';
 declare function isExpression(node: Node): any;
 declare function isDeclaration(node: Node): any;
@@ -12,4 +13,5 @@ declare function parse_next_statement(context: Context, start?: number): number;
 declare function get_inner_group(token: Token): Token;
 declare function extract_success(parser: Parser, nodes: Array<Node>): Node[];
 declare function parse_and_extract(match_tree: Record<string, any>, context: Context, node: Node): any;
-export { parse_next_statement, get_inner_group, extract_success, parse_and_extract, MATCH_MARKS, isExpression, isDeclaration, isStatement, isStatementListItem, isModuleItem, SYNTAX_TREE, EXPRESSION_TREE };
+declare let token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer | Parser) => Token>;
+export { token_hooks, parse_next_statement, get_inner_group, extract_success, parse_and_extract, MATCH_MARKS, isExpression, isDeclaration, isStatement, isStatementListItem, isModuleItem, SYNTAX_TREE, EXPRESSION_TREE };

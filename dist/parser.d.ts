@@ -1,33 +1,32 @@
 import Tokenizer from "./tokenizer";
-import { MatchedRecords, Token, Node, Context } from "./interfaces";
+import { MatchedRecords, Token, Node, Context, Validate } from "./interfaces";
 declare type Extreme = MatchedRecords;
 declare type Longest = MatchedRecords;
-declare function parseIdentifier({ value, range, loc }: Token, tokenizer?: Tokenizer): Node;
-export default class {
-    tokens: Array<Token>;
+export default class extends Tokenizer {
     SYNTAX_TREE: Record<string, any>;
     EXPRESSION_TREE: Record<string, any>;
-    tokenizer: Tokenizer;
     TYPE_ALIAS: {};
     padding_token: Token;
     error_logs: Array<any>;
+    save_comments: boolean;
+    context_stack: Array<Context>;
+    get is_primary_expr_start(): any;
+    token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer) => Token>;
     err(...args: any): void;
     constructor();
     parse(input: string): any;
     parseModule(input: string): any;
     parseScript(input: string): any;
-    parseBlock(context: Context, token?: Token): Node[];
-    parseExpression(context: Context, token?: Token, match_tree?: Record<string, any>): Node;
-    private range;
-    private loc;
+    parseExpression(context: Context): Node;
+    parseNode(match_tree: Record<string, any>, context: Context, test: (node: Node) => boolean): Node;
+    parseRangeAsNode(match_tree: Record<string, any>, context: Context, left: number, lexcal_terminator: Validate, test: (node: Node) => boolean): Node;
+    parseRangeAsExpression(context: Context, left: number, lexcal_terminator: Validate): Node;
     private _parse;
-    parseCustom(root: Record<string, any>, context: Context, begin?: number, hook?: Function): Node;
-    parseNode(match_tree: Record<string, any>, test: (node: Node) => boolean, context: Context, token?: Token): Node;
-    parseIdentifier: typeof parseIdentifier;
-    parseKeyword({ value, range, loc }: Token): Node;
-    parseDirective(node: Node): any;
-    walk(root: Record<string, any>, context: Context, index: number, backflow_tape: Array<number>, minimum: number): Longest;
+    parseCustom(root: Record<string, any>, context: Context, begin?: number, test?: Function): Token;
+    parseRange(match_tree: Record<string, any>, context: Context, left: number, lexcal_terminator: Validate, test?: (node: Node) => boolean): Token;
+    walk(root: Record<string, any>, context: Context, start: number, backflow_tape: Array<number>, minimum: number): Longest;
     createNode(context: Context): any;
+    getToken(index: number): Token;
     finallize(context: Context, record: Extreme): number;
 }
 export {};

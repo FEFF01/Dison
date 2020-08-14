@@ -3,11 +3,36 @@
 
 import {
     NodeProp,
-    Mark as MarkInterfact,
-    Node, Watcher,
+    Cover as CoverInterface,
+    Mark as MarkInterface,
+    Node, Pipe, Connector,
     Matched, CONTEXT, Context, Token, SourceLocation,
-    MATCHED
+    MATCHED,
+    /*PRECEDENCE_FEATURES,*/ PRECEDENCE, Precedence as PrecedenceInterface, MATCHED_RECORDS, Validate,
 } from '../interfaces';
+
+import Tokenizer from "../tokenizer"
+import { TOKEN_TYPE_ENUMS } from '../lexical/index'
+let type_punctuator = TOKEN_TYPE_ENUMS.Punctuator;
+let type_keyword = TOKEN_TYPE_ENUMS.Keyword;
+let type_identifier = TOKEN_TYPE_ENUMS.Identifier;
+
+
+function _Punctuator(...values: Array<string | number>) {
+    values.unshift(type_punctuator);
+    return _Or(values);
+}
+function _Keyword(...values: Array<string | number>) {
+    values.unshift(type_keyword);
+    return _Or(values);
+}
+function _Identifier(...values: Array<string | number>) {
+    values.unshift(type_identifier);
+    return _Or(values);
+}
+function _Pattern(...args: Array<string | number>) {
+    return _Or(args);
+}
 
 import Parser from '../parser'
 const enum MATCH_MARKS {
@@ -15,7 +40,9 @@ const enum MATCH_MARKS {
     DEEPTH = " DEEP",
     IDENTIFIER = " ID",
     MATCH_END = " END",
-    TYPE_ONLY = " TYPE"
+    TYPE_ONLY = " TYPE",
+    WALKER = " WAL",
+    TERMINAL = " TER"
     /*
     FOLLOW = " FOLLOW",
     NOT = " NOT",
@@ -23,18 +50,52 @@ const enum MATCH_MARKS {
     AND = " AND",*/
 }
 let OPERATOR_ID = 0;
+
+function _calc_nth(props: Array<NodeProp>, key: string | Mark | Cover) {
+    let nth = 0;
+    if (!(key instanceof Cover) && props.length) {
+        key instanceof Mark && (key = key.key);
+        for (let i = props.length - 1; i >= 0; i--) {
+            let prop = props[i], _key = prop[0];
+            if (
+                _key === key
+                || _key instanceof Mark
+                && _key.key === key
+                && (_key.value !== undefined || _key.data !== Mark.prototype.data)
+            ) {
+                if (prop[1] === 0) {
+                    prop = props[i] = [prop[0], 1, prop[2]];
+                }
+                nth = prop[1] + 1;
+            } else if (
+                !(_key instanceof Cover && _key.origin === key)
+            ) {
+                break;
+            }
+        }
+    }
+    return nth;
+}
+
 abstract class Operator {
     private _factors: Array<[string | number, Array<string | number>] | Operator | Mark>;
-    private _watcher: Array<Watcher>;
+    private _pipes: Array<Pipe>;
+    private _walker: Connector;
+    private _bind_env: boolean;
     public sub_operators = [];
     public test: (token: Token, index?: number) => boolean;
     constructor(public operands: Operands) { }
-    public watch(watcher: Watcher) {
-        if (this._watcher) {
-            this._watcher.push(watcher);
+    public pipe(pipe: Pipe) {
+        if (this._pipes) {
+            this._pipes.push(pipe);
         } else {
-            this._watcher = [watcher];
+            this._pipes = [pipe];
         }
+        return this;
+    }
+    public walk(walker: Connector, bind_env?: boolean) {
+        this._walker = walker;
+        this._bind_env = !!bind_env;
         return this;
     }
     public get factors() {
@@ -44,9 +105,10 @@ abstract class Operator {
                 if (operand instanceof Operator || operand instanceof Mark) {
                     this._factors.push(operand);
                 } else {
+
                     let parts = typeof operand === "string" ?
                         operand.replace(/^\s+|\s+$/g, "").split(/\s+/) :
-                        [operand];
+                        operand;
                     this._factors.push(
                         [
                             parts[0],
@@ -59,32 +121,65 @@ abstract class Operator {
         }
         return this._factors;
     }
-    abstract attach(parents: IterationRecord, key: string | null, watchers?: Array<Watcher>): IterationRecord;
+    abstract attach(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>): IterationRecord;
+
     protected map(
         parents: IterationRecord,
         factor: [string | number, Array<string | number>] | Operator | Mark,
-        key: string | null,
-
-        watchers?: Array<Watcher>
+        key: string | Cover,
+        pipes?: Array<Pipe>
     ) {
         let result: IterationRecord = [];
-        let _watcher = watchers
-            ? this._watcher ?
-                this._watcher.concat(watchers)
-                : watchers
-            : this._watcher;
+        let _pipes = pipes
+            ? this._pipes ?
+                this._pipes.concat(pipes)
+                : pipes
+            : this._pipes;
         if (factor instanceof Operator || factor instanceof Mark) {
-            return factor.attach(parents, key, _watcher);
+            return factor.attach(parents, key, _pipes);
         } else {
+            let type = factor[0], values = factor[1];
             for (const prev_item of parents) {
-                let [root, keys] = prev_item;
-                (keys = keys.slice()).push([key, _watcher]);
-                let parent = this.getNode(root, factor[0]);
-                for (const value of factor[1]) {
+                let [root, props] = prev_item;
+                props = props.slice();
+                props.push([key, _calc_nth(props, key), _pipes]);
+                let parent = this.getNode(root, type);
+
+                let walker = this._walker;
+                if (walker && this._bind_env) {
+                    walker = walker.bind(
+                        props.reduce((res, prop) => {
+                            let key = prop[0];
+                            if (key instanceof Mark) {
+                                res[key.key] = key.value;
+                            } else {
+                                res[key instanceof Cover ? key.origin : key] = true;
+                            }
+                            return res;
+                        }, {})
+                    );
+                }
+
+                for (const value of values) {
+                    let value_node = this.getNode(parent, value, root);
+                    if (
+                        value_node[MATCH_MARKS.WALKER]
+                        && value_node[MATCH_MARKS.WALKER] !== walker
+                    ) {
+                        console.warn(
+                            "conflict:",
+                            value_node,
+                            value_node[MATCH_MARKS.WALKER],
+                            walker
+                        );
+                    }
+                    if (walker) {
+                        value_node[MATCH_MARKS.WALKER] = walker;
+                    }
                     result.push(
                         [
-                            this.getNode(parent, value, root),
-                            keys,
+                            value_node,
+                            props,
                             null/*[root, factor[0], value, prev_item]//Loop*/
                         ]
                     );
@@ -107,7 +202,14 @@ abstract class Operator {
         child = parent[key] = {
             [MATCH_MARKS.IDENTIFIER]: OPERATOR_ID
         };
-        root && (child[MATCH_MARKS.DEEPTH] = root[MATCH_MARKS.DEEPTH] + 1);
+        if (root) {
+            child[MATCH_MARKS.DEEPTH] = root[MATCH_MARKS.DEEPTH] + 1;
+            root[MATCH_MARKS.TERMINAL] = false;
+            child[MATCH_MARKS.TERMINAL] = true;
+            /*if (root[MATCH_MARKS.MATCH_END]) {
+                root[MATCH_MARKS.MATCH_END][MATCHED_RECORDS.precedence][PRECEDENCE.TERMINAL] = false;
+            }*/
+        }
         return child;
     }
     protected setWrap(records: IterationRecord) {//Loop
@@ -128,23 +230,23 @@ abstract class Operator {
         }
         return records;
     }
-    protected getDeepNodes(parents: IterationRecord, key: string | null, watchers?: Array<Watcher>) {
+    protected getDeepNodes(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>) {
         let children = parents, factors = this.factors;
         for (const factor of factors) {
-            children = this.map(children, factor, key, watchers);
+            children = this.map(children, factor, key, pipes);
         }
         return children;
     }
-    protected getNextNodes(parents: IterationRecord, key: string | null, watchers?: Array<Watcher>) {
+    protected getNextNodes(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>) {
         let children = [], factors = this.factors;
         for (const factor of factors) {
-            Array.prototype.push.apply(children, this.map(parents, factor, key, watchers));
+            Array.prototype.push.apply(children, this.map(parents, factor, key, pipes));
         }
         return children;
     }
 }
 
-type Operand = string | number | Operator | Mark;
+type Operand = string | /*number |*/ Operator | Mark | Array<string | number>;
 type Operands = Array<Operand>;
 type IterationRecordItem = [
     Record<string, any>,
@@ -154,20 +256,20 @@ type IterationRecordItem = [
 type IterationRecord = Array<IterationRecordItem>;
 
 class Option extends Operator {
-    attach(parents: IterationRecord, key: string, watchers?: Array<Watcher>) {
-        let children = this.getNextNodes(parents, key, watchers).concat(parents);
+    attach(parents: IterationRecord, key: string, pipes?: Array<Pipe>) {
+        let children = this.getNextNodes(parents, key, pipes).concat(parents);
         return children;
     }
 }
 class Or extends Operator {
-    attach(parents: IterationRecord, key: string, watchers?: Array<Watcher>) {
-        return this.getNextNodes(parents, key, watchers);
+    attach(parents: IterationRecord, key: string, pipes?: Array<Pipe>) {
+        return this.getNextNodes(parents, key, pipes);
     }
 }
 
 class Series extends Operator {
-    attach(parents: IterationRecord, key: string, watchers?: Array<Watcher>) {
-        return this.getDeepNodes(parents, key, watchers);
+    attach(parents: IterationRecord, key: string, pipes?: Array<Pipe>) {
+        return this.getDeepNodes(parents, key, pipes);
     }
 }
 /*
@@ -184,15 +286,22 @@ class Not extends Operator {
         
     }
 }*/
+class Cover implements CoverInterface {
+    constructor(public origin: any, public value: any) {
+        if (origin instanceof Cover) {
+            this.origin = origin.origin;
+        }
+    }
+}
 class NonCapturing extends Operator {
-    attach(parents: IterationRecord, key: string, watchers?: Array<Watcher>) {
-        return this.getNextNodes(parents, null, watchers);
+    attach(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>) {
+        return this.getNextNodes(parents, new Cover(key, null), pipes);
     }
 }
 
 class NonCollecting extends Operator {
-    attach(parents: IterationRecord, key: string, watchers?: Array<Watcher>) {
-        return this.getNextNodes(parents, "", watchers);
+    attach(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>) {
+        return this.getNextNodes(parents, new Cover(key, ""), pipes);
     }
 }
 
@@ -214,31 +323,34 @@ class Loop extends Operator {
     }
 }
 
-class Mark implements MarkInterfact {
+class Mark implements MarkInterface {
     static MATCHED_RECORD: Matched;
     public key: string;
     public value: any;
     constructor(value?: any) {
         if (typeof value === "function") {
-            Object.defineProperty(this, "value", {
-                configurable: true,
-                enumerable: true,
-                get: value
-            });
+            this.data = value;
         } else {
             this.value = value;
         }
     }
-    attach(parents: IterationRecord, key: string, watchers?: Array<Watcher>) {
+    data(context: Context, index: number) {
+        return this.value;
+    }
+    attach(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>) {
         let value = this.value;
-        if (key && value !== undefined) {
+        if (!(key instanceof Cover) && (value !== undefined || this.data !== Mark.prototype.data)) {
             if (key === "type") {
                 Mark.MATCHED_RECORD[MATCHED.wrapper] = _get_wrapper_function(value);;
             } else {
+                let result: IterationRecord = [];
                 this.key = key;
                 for (const parent of parents) {
-                    parent[1] = parent[1].concat(this);
+                    let props = parent[1].slice();
+                    props.push([this, _calc_nth(props, this), undefined]);
+                    result.push([parent[0], props, parent[2]]);
                 }
+                return result;
             }
         }
         return parents;
@@ -277,6 +389,7 @@ function _Mark(some?: any) {
 }
 let NODES: Record<string, (...args: any) => void> = {
     Grouping(node?: Record<string, any>, grouping?: Token) {
+        this.type = "Grouping";
         for (const key in node) {
             this[key] = node[key];
         }
@@ -298,19 +411,15 @@ let NODES: Record<string, (...args: any) => void> = {
         this.range = range;
         this.loc = loc;
     },
-    Script(body: Array<Node>, range: [number, number], loc: SourceLocation) {
+    Script(body: Array<Node>) {
         this.type = "Program";
         this.sourceType = "script";
         this.body = body;
-        this.range = range;
-        this.loc = loc;
     },
-    Module(body: Array<Node>, range: [number, number], loc: SourceLocation) {
+    Module(body: Array<Node>) {
         this.type = "Program";
         this.sourceType = "module";
         this.body = body;
-        this.range = range;
-        this.loc = loc;
     }
 };
 function _get_adapt(data: any, index: number) {
@@ -322,7 +431,7 @@ function _get_wrapper_function(type: string) {
     return NODES[type]
         || (
             NODES[type]
-            = eval(`(function ${type}(){this.type="${type}"})`)
+            = type ? eval(`(function ${type}(){this.type="${type}"})`) : function () { }
         );
 }
 function createMatchTree(
@@ -346,7 +455,7 @@ function createMatchTree(
                     collector: collectors,
                     handler: handlers,
                     overload,
-                    precedence: precedences = 100,
+                    precedence: precedences = true/*PRECEDENCE_FEATURES.IMMEDIATE*/,
                     filter: filters,
                     validator: validators
                 } = item;
@@ -361,12 +470,17 @@ function createMatchTree(
                 for (let index = 0; index < collectors.length; index++) {
                     let collector = collectors[index];
 
-                    let precedence: Matched[MATCHED.precedence] = _get_adapt(precedences, index);
+                    let precedence: any = _get_adapt(precedences, index);
                     let handler: Matched[MATCHED.handler] = _get_adapt(handlers, index);
                     let filter: Matched[MATCHED.filter] = _get_adapt(filters, index);
                     let validator: Matched[MATCHED.validator] = _get_adapt(validators, index);
                     Mark.MATCHED_RECORD = [
-                        precedence, null, wrapper, handler, validator, filter
+                        [precedence instanceof Number ? Number(precedence) : precedence, precedence],
+                        null,
+                        wrapper,
+                        handler,
+                        validator,
+                        filter
                     ];
                     if (collector instanceof Array) {
                         let _collector = { ...collectors[index - 1] };
@@ -410,25 +524,29 @@ function createMatchTree(
 
 }
 
-
-
-
-function _Context(parser: Parser, tokens: Array<Node>): Context {
+function _Context(parser: Parser): Context {
     let state_stack = [];
     let context: any = new Array(CONTEXT.length);
     context[CONTEXT.parser] = parser;
-    context[CONTEXT.tokens] = tokens;
     context[CONTEXT.labelSet] = [];
+    //context[CONTEXT.tokens] = tokens;
     context.wrap = wrap;
     context.unwrap = unwrap;
     context.store = store;
     context.restore = restore;
-    //context.getToken = getToken;
+    context.getToken = getToken;
+    Object.defineProperty(context, "tokens", {
+        get() {
+            return this[CONTEXT.tokens] || this[CONTEXT.parser].tokens;
+        }
+    })
     return context;
 
-    /*function getToken(index: number) {
-        return context[CONTEXT.tokens][index];
-    }*/
+    function getToken(index: number) {
+        let tokens = this[CONTEXT.tokens];
+        return !tokens ? this[CONTEXT.parser].getToken(index) : tokens[index];
+        //return context[CONTEXT.tokens][index];
+    }
     function wrap(key: CONTEXT, value: any) {
         state_stack.push(context[key], key);
         context[key] = value;
@@ -474,17 +592,20 @@ function _if_strict_throw_err(context: Context, token: Token) {
         context[CONTEXT.parser].err(token);
     }
 }
+function _if_reserved_throw_err(context: Context, token: Token) {
+    validateIdentifier(context, token);
+}
 const THROW_RESTRICT_WORDS_PATTERN = _Or(
     "Identifier eval arguments"
-).watch(_if_strict_throw_err);
+).pipe(_if_strict_throw_err);
 const THROW_STRICT_RESERVED_WORDS_PATTERN = _Or(
     "Identifier implements interface package private protected public static yield let"
-).watch(_if_strict_throw_err);
+).pipe(_if_strict_throw_err);
 
 const IDENTIFIER_OR_THROW_STRICT_RESERVED_WORDS_PATTERN = _Or("Identifier", THROW_STRICT_RESERVED_WORDS_PATTERN);
 const EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN = _Or("[Expression]", THROW_STRICT_RESERVED_WORDS_PATTERN);
 
-const IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN = _Or("Identifier").watch(validateIdentifier);
+const IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN = _Or("Identifier").pipe(_if_reserved_throw_err);
 const EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN = _Or(
     "[Expression]",
     IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN
@@ -532,13 +653,17 @@ function validateBinding(context: Context, node: Node) {
         return true;
     }
 }
-
-function validateLineTerminator([collected, parser, tokens, , right]: Context) {
+function validateLineTerminator(context: Context) {
+    let [collected, parser, , right] = context;
     if (collected._next) {
         delete collected._next;
     } else {
-        let next_token = tokens[right + 1];
-        if (next_token && next_token.loc.start.line === collected.loc.end.line) {
+        let next_token = context.getToken(right + 1);
+        if (
+            next_token
+            && !(next_token.type === TOKEN_TYPE_ENUMS.Punctuator && next_token.value === "}")
+            && next_token.loc.start.line === collected.loc.end.line
+        ) {
             parser.err(next_token);
         }
     }
@@ -583,7 +708,7 @@ const TOPLEVEL_ITEM_PATTERN = _Or(
 );
 
 function isAligned(context: Context, left: number, right: number) {
-    let tokens = context[CONTEXT.tokens];
+    let tokens = context.tokens;
     for (let index = left; index < right; index++) {
         if (tokens[index].loc.end.line !== tokens[index + 1].loc.start.line) {
             return false;
@@ -591,7 +716,60 @@ function isAligned(context: Context, left: number, right: number) {
     }
     return true;
 }
+
+function attachLocation(source: Node, start: Node, end: Node = start) {
+    source.range = [start.range[0], end.range[1]];
+    source.loc = {
+        start: start.loc.start,
+        end: end.loc.end
+    };
+}
+
+
+function reinterpretKeywordAsIdentifier({ value, range, loc }: Token, tokenizer?: Tokenizer): Node {
+    let name = tokenizer ? tokenizer._bak : value;
+    let identifier = {
+        type: "Identifier", name, range, loc
+    };
+    Object.defineProperty(identifier, "value", {
+        configurable: true,
+        enumerable: false,
+        value: name
+    });
+    return identifier;
+}
+function reinterpretIdentifierAsKeyword({ value, range, loc }: Token): Node {
+    return {
+        type: "Keyword",
+        value,
+        range,
+        loc
+    };
+}
+
+function _Validate(type: string | number, value: string): Validate {
+    return function (token: Token) {
+        return token.type === type && token.value === value;
+    }
+}
+
+
+let is_right_parentheses = _Validate(type_punctuator, ")");
+let is_right_brackets = _Validate(type_punctuator, "]");
+let is_right_braces = _Validate(type_punctuator, "}");
 export {
+    _Punctuator,
+    _Keyword,
+    _Identifier,
+    _Pattern,
+    is_right_parentheses,
+    is_right_brackets,
+    is_right_braces,
+    _Validate,
+    reinterpretIdentifierAsKeyword,
+    reinterpretKeywordAsIdentifier,
+    attachLocation,
+    Cover,
     Mark, isAligned,
     STATEMANT_LIST_ITEM_PATTERN,
     RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN,

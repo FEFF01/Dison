@@ -2085,7 +2085,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            this.startMarker.line = this.scanner.lineNumber;
 	            this.startMarker.column = this.scanner.index - this.scanner.lineStart;
 	        }
-	        var next = this.scanner.lex();
+			var next = this.scanner.lex();
 	        this.hasLineTerminator = (token.lineNumber !== next.lineNumber);
 	        if (next && this.context.strict && next.type === 3 /* Identifier */) {
 	            if (this.scanner.isStrictModeReservedWord(next.value)) {
@@ -2099,7 +2099,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        return token;
 	    };
 	    Parser.prototype.nextRegexToken = function () {
-	        this.collectComments();
+			this.collectComments();
 	        var token = this.scanner.scanRegExp();
 	        if (this.config.tokens) {
 	            // Pop the previous token, '/' or '/='
@@ -6712,7 +6712,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 	    Tokenizer.prototype.getNextToken = function () {
 	        if (this.buffer.length === 0) {
-	            var comments = this.scanner.scanComments();
+				var comments = this.scanner.scanComments();
 	            if (this.scanner.trackComment) {
 	                for (var i = 0; i < comments.length; ++i) {
 	                    var e = comments[i];

@@ -1,29 +1,34 @@
 
 
 import {
-    Context, CONTEXT, SourceLocation, Node
+    Context, CONTEXT, SourceLocation, Node, Token
 } from '../interfaces';
 import {
+    _Punctuator,
+    _Keyword,
+    _Identifier,
+    _Pattern,
     isRestrictedWord,
     STATEMANT_LIST_ITEM_PATTERN,
     TOPLEVEL_ITEM_PATTERN,
     _Option, _Or, _Series, _NonCollecting, _Mark, NODES, TYPE_ALIAS,
     validateBinding, validateLineTerminator, AWAIT_LIST, createMatchTree, join_content, _NonCapturing, MATCH_MARKS
 } from './head'
-import { Expressions, PRIMARY_EXPRESSION_TREE } from './expression';
+import { Expressions, UNIT_EXPRESSION_TREE } from './expression';
 
 let Grouping = NODES.Grouping;
 
 
 function get_variable_declarator(context: Context, id: Node, init: Node, range: [number, number], loc: SourceLocation): Node {
+    let parser = context[CONTEXT.parser];
     if (id instanceof Grouping) {
-        context[CONTEXT.parser].err(id);
+        parser.err(id);
     } else if (context[CONTEXT.strict]) {
         init || validateBinding(context, id);
     } if (id.name === "let") {
-        let kind = context[CONTEXT.tokens][context[CONTEXT.begin] - 1];
+        let kind = context.tokens[context[CONTEXT.begin] - 1];
         if (kind.value === "let" || kind.value === "const") {
-            context[CONTEXT.parser].err(id);
+            parser.err(id);
         }
     }
     return {
@@ -43,14 +48,14 @@ let VariableDeclarators = {
                 return collected;
             }
         ],
-        precedence: [100, 0],
+        precedence: [true, 0],
         collector: [
             {
                 success: _Or("Success", MATCH_MARKS.BOUNDARY),
                 content: _Or(
-                    _Or("Identifier").watch(
+                    _Pattern("Identifier").pipe(
                         function (context: Context, identifier: Node) {
-                            context[CONTEXT.collected].content = get_variable_declarator(
+                            return get_variable_declarator(
                                 context,
                                 identifier,
                                 null,
@@ -59,9 +64,9 @@ let VariableDeclarators = {
                             );
                         }
                     ),
-                    _Or("AssignmentPattern").watch(
+                    _Pattern("AssignmentPattern").pipe(
                         function (context: Context, pattern: Node) {
-                            context[CONTEXT.collected].content = get_variable_declarator(
+                            return get_variable_declarator(
                                 context,
                                 pattern.left,
                                 pattern.right,
@@ -83,7 +88,7 @@ let VariableDeclarators = {
 let VARIABLE_DECLARATOR_TREE: Record<string, any>;
 
 AWAIT_LIST.push(function () {
-    VARIABLE_DECLARATOR_TREE = createMatchTree(VariableDeclarators, PRIMARY_EXPRESSION_TREE);
+    VARIABLE_DECLARATOR_TREE = createMatchTree(VariableDeclarators, UNIT_EXPRESSION_TREE);
 });
 
 function reinterpreat_expression_as_declaration(context: Context, expr: Node) {
@@ -99,17 +104,19 @@ function reinterpreat_expression_as_declaration(context: Context, expr: Node) {
     for (let key in expr) {
         collected[key] = expr[key];
     }
+    return expr.id;
 }
+
 const Declarations: Record<string, any> = {
     "ClassDeclaration": { //<= ClassExpression
         filter(context: Context, left: number, right: number) {
-            let tokens = context[CONTEXT.tokens];
+            let tokens = context.tokens;
             return !(tokens[right] instanceof Grouping);
         },
         collector: [
             {
                 _prev: _NonCapturing(TOPLEVEL_ITEM_PATTERN),
-                id: _Or("ClassExpression").watch(reinterpreat_expression_as_declaration)
+                id: _Pattern("ClassExpression").pipe(reinterpreat_expression_as_declaration)
             }
         ]
     },
@@ -118,28 +125,16 @@ const Declarations: Record<string, any> = {
         collector: [
             {
                 _prev: _NonCapturing(TOPLEVEL_ITEM_PATTERN),
-                id: _Or("FunctionExpression").watch(reinterpreat_expression_as_declaration)
+                id: _Pattern("FunctionExpression").pipe(reinterpreat_expression_as_declaration)
             }
         ]
     },
     "VariableDeclaration": [
         {
-            validator(context: Context) {
-                let [, parser, tokens, left] = context;
-                context[CONTEXT.start] = context[CONTEXT.end] = left + 1;
-                return parser.parseKeyword(tokens[left + 1]);
-            },
-            collector: {
-                _: TOPLEVEL_ITEM_PATTERN,
-                __: "Identifier let",
-                ___: "Punctuator []"
-            }
-        },
-        {
             validator: [
                 function (context: Context) {
-                    let [, parser, tokens, left] = context;
-                    context.wrap(CONTEXT.bindingElement, tokens);
+                    let [, parser, left] = context;
+                    context.wrap(CONTEXT.bindingElement, true);
                     let res = parser.parseCustom(
                         VARIABLE_DECLARATOR_TREE,
                         context,
@@ -150,24 +145,25 @@ const Declarations: Record<string, any> = {
                     return res && 0;
                 }, null
             ],
-            handler(context: Context) {
-                let [collected] = context;
-                let { declarations, kind } = collected;
-                collected.declarations = declarations.content;
-                collected.kind = kind.value || kind.name;
-                return collected;
-            },
             collector: [
                 {
                     //_: _NonCapturing(TOPLEVEL_ITEM_PATTERN),
-                    kind: _Or("Keyword var const let", "Identifier let"),
+                    kind: _Or("Keyword var const let", "Identifier let").pipe(
+                        function (context: Context, token: Token) {
+                            return token.name === undefined ? token.value : token.name;
+                        }
+                    ),
                     declarations: _Or(
                         "Identifier",
-                        _Series("Punctuator [] {}", "Punctuator =")
+                        "Punctuator [ {"
                     )
                 },
                 [
-                    ["declarations", "VariableDeclarators"],
+                    ["declarations", _Pattern("VariableDeclarators").pipe(
+                        function (context: Context, token: Token) {
+                            return token.content;
+                        }
+                    )],
                 ]
             ]
         }

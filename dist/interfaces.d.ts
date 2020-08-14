@@ -15,7 +15,7 @@ interface Node {
 }
 interface Token extends Node {
     value?: any;
-    content?: Array<Token>;
+    content?: any;
     regex?: {
         pattern: string;
         flags: string;
@@ -43,12 +43,12 @@ declare const enum NUMERIC_TYPE {
 declare const enum CONTEXT {
     collected = 0,
     parser = 1,
-    tokens = 2,
-    left = 3,
-    right = 4,
-    start = 5,
-    end = 6,
-    begin = 7,
+    left = 2,
+    right = 3,
+    start = 4,
+    end = 5,
+    begin = 6,
+    tokens = 7,
     rightAssociativeNode = 8,
     matched = 9,
     bindingSet = 10,
@@ -68,12 +68,12 @@ declare const enum CONTEXT {
 interface Context extends Array<any> {
     [CONTEXT.collected]?: Record<string, Node | string | any | Array<Node | string | any>>;
     [CONTEXT.parser]: Parser;
-    [CONTEXT.tokens]: Array<Node>;
     [CONTEXT.left]?: number;
     [CONTEXT.right]?: number;
     [CONTEXT.start]?: number;
     [CONTEXT.end]?: number;
     [CONTEXT.begin]?: number;
+    [CONTEXT.tokens]?: Array<Node>;
     [CONTEXT.rightAssociativeNode]?: Node;
     [CONTEXT.matched]?: Matched;
     [CONTEXT.bindingSet]?: Array<string>;
@@ -82,12 +82,14 @@ interface Context extends Array<any> {
     [CONTEXT.isModule]?: boolean;
     [CONTEXT.isExpression]?: boolean;
     [CONTEXT.inIteration]?: boolean;
-    [CONTEXT.inFunctionBody]?: Array<Node>;
-    [CONTEXT.inSwitch]?: Array<Node>;
-    [CONTEXT.bindingElement]?: Array<Node>;
-    [CONTEXT.spreadElement]?: Array<Node>;
+    [CONTEXT.inFunctionBody]?: number;
+    [CONTEXT.inSwitch]?: boolean;
+    [CONTEXT.bindingElement]?: boolean;
+    [CONTEXT.spreadElement]?: boolean;
     [CONTEXT.allowAwait]?: boolean;
     [CONTEXT.allowYield]?: boolean;
+    tokens: Array<Token>;
+    getToken(index: number): Token;
     wrap(key: number, value: any): Context;
     unwrap(): Context;
     store(...args: Array<CONTEXT | any>): number;
@@ -114,12 +116,18 @@ declare const enum MATCHED {
 interface Mark {
     key: string;
     value: string;
+    data: (context: Context, index: number) => any;
+}
+interface Cover {
+    origin: any;
+    value: any;
 }
 declare type Operation = null | 0 | undefined | false;
-declare type NodeProp = [string | null, Array<Watcher> | undefined] | Mark;
-declare type Watcher = (context: Context, token: Token | null) => void;
+declare type NodeProp = [string | Cover | Mark, number, Array<Pipe> | undefined];
+declare type Pipe = (context: Context, token: Token | null, index: number) => any | undefined;
+declare type Connector = (context: Context, index: number) => void;
 interface Matched extends Array<any> {
-    [MATCHED.precedence]: number | Number;
+    [MATCHED.precedence]: Precedence;
     [MATCHED.props]: Array<NodeProp>;
     [MATCHED.wrapper]: Wrapper;
     [MATCHED.handler]?: (context: Context) => Operation | Node | Array<Node>;
@@ -133,9 +141,18 @@ declare const enum MATCHED_RECORDS {
     matched = 3
 }
 interface MatchedRecords extends Array<any> {
-    [MATCHED_RECORDS.precedence]: number | Number;
+    [MATCHED_RECORDS.precedence]: Precedence;
     [MATCHED_RECORDS.left]: number;
     [MATCHED_RECORDS.right]: number;
     [MATCHED_RECORDS.matched]: Matched;
 }
-export { NodeProp, Mark, Watcher, Position, SourceLocation, MATCHED_RECORDS, MatchedRecords, Matched, MATCHED, Token, Context, CONTEXT, Expression, Program, NUMERIC_TYPE, MATCH_STATUS, MatchTree, SearchTree, /* Tokenizer, Parser,*/ Node };
+declare const enum PRECEDENCE {
+    VALUE = 0,
+    RIGHT_ASSOCIATIVE = 1
+}
+interface Precedence extends Array<any> {
+    [PRECEDENCE.VALUE]: number | true;
+    [PRECEDENCE.RIGHT_ASSOCIATIVE]: number | Number;
+}
+declare type Validate = (token: Token) => boolean;
+export { Validate, PRECEDENCE, Precedence, NodeProp, Mark, Cover, Pipe, Connector, Position, SourceLocation, MATCHED_RECORDS, MatchedRecords, Matched, MATCHED, Token, Context, CONTEXT, Expression, Program, NUMERIC_TYPE, MATCH_STATUS, MatchTree, SearchTree, /* Tokenizer, Parser,*/ Node };

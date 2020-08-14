@@ -3,29 +3,28 @@ import {
     Node, Token, Context, CONTEXT
 } from '../interfaces';
 import {
+    attachLocation,
     createMatchTree,
     _Option, _Or, _Series, _NonCollecting, _NonCapturing, _Mark,
     TYPE_ALIAS, _Context, _Loop, NODES, MATCH_MARKS,
-    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, join_content, AWAIT_LIST
+    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, join_content, AWAIT_LIST, TOPLEVEL_ITEM_PATTERN
 } from './head'
 import { isExpression, isStatementListItem, get_inner_group, parse_and_extract } from './index';
 
-import { PRIMARY_EXPRESSION_TREE } from './expression';
-//import { MEMBER_EXPRESSION_TREE } from './expression';
+import { UNIT_EXPRESSION_TREE } from './expression';
 const Grouping = NODES.Grouping;
 
 let PETTERN_ELEMENTS_TREE: Record<string, any>;
 let PATTERN_PROPERTIES_TREE: Record<string, any>;
 
 AWAIT_LIST.push(function () {
-    //({ MEMBER_EXPRESSION_TREE } = await require('./expression'));
     PETTERN_ELEMENTS_TREE = createMatchTree(
         PatternElements,
-        PRIMARY_EXPRESSION_TREE
+        UNIT_EXPRESSION_TREE
     );
     PATTERN_PROPERTIES_TREE = createMatchTree(
         PatternProperties,
-        PRIMARY_EXPRESSION_TREE
+        UNIT_EXPRESSION_TREE
     );
 });
 
@@ -43,7 +42,7 @@ const Patterns: Record<string, any> = {
         filter: [
             null,
             function (context: Context) {
-                return context[CONTEXT.bindingElement] === context[CONTEXT.tokens];
+                return context[CONTEXT.bindingElement]/* === context[CONTEXT.tokens]*/;
             }
         ],
         collector: [
@@ -70,17 +69,15 @@ const Patterns: Record<string, any> = {
         filter: [
             null, null,
             function (context: Context, left: number, right: number) {
-                let tokens = context[CONTEXT.tokens];
-                return context[CONTEXT.bindingElement] === tokens
+                return context[CONTEXT.bindingElement]/* === tokens*/
                     || context[CONTEXT.isExpression];
             },
             function (context: Context) {
-                return context[CONTEXT.bindingElement] === context[CONTEXT.tokens];
+                return context[CONTEXT.bindingElement] /*=== context[CONTEXT.tokens]*/;
             }
         ],
         collector: [
             {
-                type: _Mark("ObjectPattern"),
                 _prev: _NonCapturing(ASSIGNMENT_PUNCTUATORS_PATTERN),
                 properties: _Or("Punctuator {}"),
                 _next: _NonCapturing(ASSIGNMENT_PUNCTUATORS_PATTERN)
@@ -90,24 +87,22 @@ const Patterns: Record<string, any> = {
                 ["is_binding", _Mark(true)]
             ],
             ["_prev", _Mark()],
-            {
-                type: _Mark("ObjectPattern"),
-                _prev: _NonCapturing("Punctuator ...", MATCH_MARKS.BOUNDARY, "Success"),
-                properties: _Or("Punctuator {}"),
-                is_binding: _Mark(true)
-            }
+            [
+                ["_prev", _NonCapturing("Punctuator ...", MATCH_MARKS.BOUNDARY, "Success")],
+                ["_next", _Mark()],
+            ]
         ]
     },
     AssignmentPattern: {
         filter(context: Context) {
-            return context[CONTEXT.bindingElement] === context[CONTEXT.tokens];
+            return context[CONTEXT.bindingElement]/* === context[CONTEXT.tokens]*/;
         },
         precedence: 1.5,
         collector: {
             _: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
             left: _Or(
                 "ArrayPattern", "ObjectPattern",
-                _Or("Identifier").watch(
+                _Or("Identifier").pipe(
                     function (context: Context, identifier: Node) {
                         if (identifier instanceof Grouping) {
                             context[CONTEXT.parser].err(identifier);
@@ -121,39 +116,81 @@ const Patterns: Record<string, any> = {
             right: "[Expression]"
         }
     },
-    "": {
-        handler(context: Context) {
-            let [{ token }, parser, tokens, left, right] = context;
-            if (right - left >= 2 && context[CONTEXT.bindingElement] === tokens) {
-                parser.err(token);
-            }
-            token = get_inner_group(token);
-            let store = context.store(CONTEXT.bindingElement, token.content, CONTEXT.bindingSet, null);
-            let node = parser.parseNode(
-                PRIMARY_EXPRESSION_TREE,
-                node => isExpression(node)
-                    || node.type === "ArrayPattern"
-                    || node.type === "ObjectPattern"
-                    || node.type === "AssignmentPattern",
-                context,
-                token
-            );
-            context.restore(store);
-            return new Grouping(node, token);
-        },
-        precedence: [100, new Number(3)],
-        collector: [
-            {
-                _prev: _NonCapturing("Punctuator ,", MATCH_MARKS.BOUNDARY, "Success"),
-                token: _Or("Punctuator ()"),
-                _next: _NonCapturing(ASSIGNMENT_PUNCTUATORS_PATTERN)
+    "": [
+        {
+            handler(context: Context) {
+                let [{ token }, parser, left, right] = context;
+                token = get_inner_group(token);
+                let store = context.store(
+                    CONTEXT.tokens, token.content,
+                    CONTEXT.bindingElement, true,
+                    CONTEXT.bindingSet, null
+                );
+                let node = parser.parseNode(
+                    UNIT_EXPRESSION_TREE,
+                    context,
+                    node => isExpression(node)
+                        || node.type === "ArrayPattern"
+                        || node.type === "ObjectPattern"
+                        || node.type === "AssignmentPattern",
+                );
+                context.restore(store);
+                if (!node) {
+                    parser.err(token);
+                }
+                return new Grouping(node, token);
             },
-            [
-                ["_prev", _Mark()],
-                ["prevent_binding", _Mark(true)]
+            collector: [
+                {
+                    _prev: _NonCapturing(
+                        _Series("Keyword export", "Keyword default"),
+                        "Punctuator ,", "Success", TOPLEVEL_ITEM_PATTERN, ASSIGNMENT_PUNCTUATORS_PATTERN
+                    ),
+                    token: _Or("Punctuator ()"),
+                    _next: _NonCapturing(ASSIGNMENT_PUNCTUATORS_PATTERN)
+                }
             ]
-        ]
-    }
+        },
+
+        {
+            validator(context: Context) {
+                let [, parser, , right] = context;
+                let argument = context.getToken(right);
+                argument instanceof Grouping && parser.err(argument);
+                return true;
+            },
+            filter(context: Context) {
+                return context[CONTEXT.spreadElement];
+            },
+            precedence: 1.5,
+            collector: {
+                type: _Mark("SpreadElement"),
+                token: _NonCollecting("Punctuator ..."),
+                argument: "[Expression]"
+            }
+        },
+        {
+            validator(context: Context) {
+                let [, parser, , right] = context;
+                let argument = context.getToken(right);
+                argument instanceof Grouping && parser.err(argument);
+                return true;
+            },
+            filter: function (context: Context) {
+                return context[CONTEXT.bindingElement];
+            },
+            precedence: 1.5,
+            collector: {
+                type: _Mark("RestElement"),
+                token: _NonCollecting("Punctuator ..."),
+                argument: _Or(_Or("Identifier").pipe(
+                    function (context: Context, token: Token) {
+                        validateBinding(context, token)
+                    }
+                ), "ArrayPattern", "ObjectPattern")
+            }
+        }
+    ]
 };
 export {
     Patterns,
@@ -164,7 +201,7 @@ export {
 
 function parseArrayPattern(context: Context, token: Token): Node {
     let pattern = new NODES.ArrayPattern();
-    context.wrap(CONTEXT.bindingElement, token.content);
+    context.wrap(CONTEXT.bindingElement, true);
     pattern.elements = parse_and_extract(PETTERN_ELEMENTS_TREE, context, token);
     context.unwrap();
     pattern.range = token.range;
@@ -173,7 +210,7 @@ function parseArrayPattern(context: Context, token: Token): Node {
 }
 function parseObjectPattern(context: Context, token: Token): Node {
     let pattern = new NODES.ObjectPattern();
-    context.wrap(CONTEXT.bindingElement, token.content);
+    context.wrap(CONTEXT.bindingElement, true);
     pattern.properties = parse_and_extract(PATTERN_PROPERTIES_TREE, context, token);
     context.unwrap();
     pattern.range = token.range;
@@ -188,7 +225,7 @@ let PatternElements = {
             {
                 success: _Or(MATCH_MARKS.BOUNDARY, "Success"),
                 content: _Or(
-                    _Or("Identifier").watch(
+                    _Or("Identifier").pipe(
                         function (context: Context, identifier: Token) {
                             if (identifier instanceof Grouping) {
                                 context[CONTEXT.parser].err(identifier);
@@ -214,64 +251,55 @@ let PatternElements = {
     }
 }
 
+
 const PatternProperties = {
     Success: {
         handler: join_content,
-        precedence: 0,
+        //precedence: 0,
         collector: {
             success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
             content: "Property",
         }
-
     },
     Property: [
         {
-            handler(context: Context) {
-                let [collected, parser] = context;
-                let { key, value } = collected;
-                if (key.type === "Punctuator") {
-                    collected.key = parser.parseExpression(context, key);//SequenceExpression
-                }
-                if (!value) {
-                    collected.value = key;
-                    validateBinding(context, key);
-                } else {
-                    let init: Node;
-                    if (collected.shorthand) {
-                        init = value;
-                        value = key;
-                        validateBinding(context, value);
-                    } else {
-                        if (value instanceof Array) {
-                            init = value[1];
-                            value = value[0];
-                        }
-                        if (value.type === "Identifier") {
-                            validateBinding(context, value);
-                        } else {
-                            value = (
-                                value.value === "[]"
-                                    ? parseArrayPattern
-                                    : parseObjectPattern
-                            )(context, value);
-                        }
-                    }
-                    collected.value = init ? {
-                        type: "AssignmentPattern",
-                        left: value,
-                        right: init
-                    } : value;
-                }
-                return collected;
-            },
             collector: [
                 {
-                    _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Property"),
-                    key: "Punctuator []",
+                    _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+                    key: _Or("Punctuator []").pipe(
+                        function (context: Context, token: Token) {
+                            context.wrap(CONTEXT.tokens, token.content);
+                            let res = context[CONTEXT.parser].parseExpression(context);
+                            context.unwrap();
+                            return res;
+                        }
+                    ),
                     value: _Series(
                         _NonCollecting("Punctuator :"),
-                        _Or("Identifier", "Punctuator [] {}"),
-                        _Option(_Series(_NonCollecting("Punctuator ="), "[Expression]"))
+                        _Or(
+                            _Or("Identifier").pipe(function (context: Context, token: Token) {
+                                validateBinding(context, token);
+                            }),
+                            _Or("Punctuator []").pipe(parseArrayPattern),
+                            _Or("Punctuator {}").pipe(parseObjectPattern),
+                        ),
+                        _Option(_Series(_NonCollecting("Punctuator ="), "[Expression]")),
+                        _Mark(
+                            function (context: Context) {
+                                let [collected] = context;
+                                let { value } = collected;
+                                if (value.length > 1) {
+                                    let _value = new NODES.AssignmentPattern();
+                                    _value.left = value[0];
+                                    _value.right = value[1];
+                                    attachLocation(_value, value[0], value[1]);
+                                    collected.value = _value;
+                                } else {
+                                    collected.value = value[0];
+                                }
+                                return undefined;
+                            }
+                        )
                     ),
                     _next: _NonCollecting(MATCH_MARKS.BOUNDARY, "Punctuator ,"),
                     computed: _Mark(true),
@@ -282,7 +310,7 @@ const PatternProperties = {
                 [
                     [
                         "key",
-                        _Or("Identifier").watch(
+                        _Or("Identifier").pipe(
                             function (context: Context, identifier: Node) {
                                 if (identifier instanceof Grouping) {
                                     context[CONTEXT.parser].err(identifier);
@@ -293,8 +321,35 @@ const PatternProperties = {
                     ["computed", _Mark(false)]
                 ],
                 [
-                    ["value", _Option(_Series(_NonCollecting("Punctuator ="), "[Expression]"))],
-                    ["shorthand", _Mark(true)]
+                    [
+                        "value", _Or(
+                            _Series(_NonCollecting("Punctuator ="), "[Expression]").pipe(
+                                function (context: Context, token: Token) {
+                                    let [collected] = context;
+                                    let left = collected.key;
+                                    let res = new NODES.AssignmentPattern();
+                                    res.left = left;
+                                    res.right = token;
+                                    attachLocation(res, left, token);
+                                    return res;
+                                }
+                            ),
+                            _Mark(
+                                function (context: Context) {
+                                    return context[CONTEXT.collected].key;
+                                }
+                            )
+                        )
+                    ],
+                    [
+                        "shorthand",
+                        _Mark(
+                            function (context: Context) {
+                                validateBinding(context, context[CONTEXT.collected].key);
+                                return true;
+                            }
+                        )
+                    ]
                 ]
             ]
         },
@@ -305,7 +360,7 @@ const PatternProperties = {
             precedence: new Number(3),
             collector: {
                 __: _Series(
-                    _Or(MATCH_MARKS.BOUNDARY, "Property"),
+                    _Or(MATCH_MARKS.BOUNDARY, "Success"),
                     _Or(
                         "Punctuator []",
                         "Identifier",
