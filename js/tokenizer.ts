@@ -16,7 +16,7 @@ export default class extends Character {
     }
     tokens: Array<Token>;
     curly_stack: Array<any>;
-    TYPE_MAPPINGS: Record<string, string | number>;
+    TYPE_ENUMS: Record<string, string | number>;
     TOKEN_TYPE_MAPPERS: Record<string, string | number>;
     PUNCTUATORS_TREE: SearchTree;
     PRIMARY_EXPR_START_PUNCTUATORS_TREE: SearchTree;
@@ -59,7 +59,7 @@ export default class extends Character {
             if (token) {
                 let hook = this.token_hooks[token.type];
                 hook && (token = hook(token, this));
-                if (this.save_comments || token.type !== this.TYPE_MAPPINGS.Comments) {
+                if (this.save_comments || token.type !== this.TYPE_ENUMS.Comments) {
                     this.tokens.push(token);
                     return token;
                 }
@@ -103,7 +103,7 @@ export default class extends Character {
             return target.scanner ?
                 target.scanner(this, start) :
                 this.createToken(
-                    this.TYPE_MAPPINGS[target.type] || target.type,
+                    this.TYPE_ENUMS[target.type] || target.type,
                     [start, this.index],
                     target.key
                 );
@@ -122,7 +122,7 @@ export default class extends Character {
             } while (length > 0)
             let type = this.TOKEN_TYPE_MAPPERS[" " + str];
             token = this.createToken(
-                this.TYPE_MAPPINGS[type || "Identifier"],
+                this.TYPE_ENUMS[type || "Identifier"],
                 [start, this.index]
             );
             this._volatility = str;
@@ -146,8 +146,8 @@ export default class extends Character {
     get is_primary_expr_start() {
         if (this.tokens.length) {
             let last_node: any = this.tokens[this.tokens.length - 1];
-            return last_node.type === this.TYPE_MAPPINGS.Keyword
-                || last_node.type === this.TYPE_MAPPINGS.Punctuator && last_node.content === undefined;
+            return last_node.type === this.TYPE_ENUMS.Keyword
+                || last_node.type === this.TYPE_ENUMS.Punctuator && last_node.content === undefined;
         } else {
             return true;
         }
@@ -163,7 +163,7 @@ export default class extends Character {
         let flags = NUMERIC_TYPE.DECIMAL;
         let _get_token = () => {
             this._volatility = flags & NUMERIC_TYPE.OCTAL ? (flags & ~NUMERIC_TYPE.DECIMAL) : flags;
-            return this.createToken(this.TYPE_MAPPINGS.Numeric, [start, this.index]);
+            return this.createToken(this.TYPE_ENUMS.Numeric, [start, this.index]);
         }
         let _get_error = (message: string = "Invalid or unexpected token") => {
             let error = _get_token();

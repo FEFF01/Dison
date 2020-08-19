@@ -224,7 +224,7 @@ const PrimaryExpressions: Record<string, any> = {
                             expressions.push(
                                 parser.parseRangeAsExpression(context, index,
                                     function (token: Token) {
-                                        return token.type === parser.TYPE_MAPPINGS.Template
+                                        return token.type === parser.TYPE_ENUMS.Template
                                             && token.value[0] === "}";
                                     }
                                 )

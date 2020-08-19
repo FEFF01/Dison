@@ -324,7 +324,7 @@ const REGEXP_DESCRIPTOR = {
 //const IS_RADIX = NUMERIC_TYPE.BINARY | NUMERIC_TYPE.OCTAL | NUMERIC_TYPE.HEX;
 
 
-const TYPE_MAPPINGS = {
+const TYPE_ENUMS = {
     Identifier: "Identifier",
     Keyword: "Keyword",
     String: "String",
@@ -340,7 +340,7 @@ const TYPE_MAPPINGS = {
 
 
 export {
-    TYPE_MAPPINGS,
+    TYPE_ENUMS,
     PUNCTUATORS,
     TOKEN_TYPE_SET,
     REGEXP_DESCRIPTOR

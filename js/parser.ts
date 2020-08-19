@@ -39,8 +39,8 @@ export default class extends Tokenizer {
         if (this.tokens.length) {
             let last_node: any = this.tokens[this.tokens.length - 1];
             return this.isStatementListItem(last_node)
-                || last_node.type === this.TYPE_MAPPINGS.Keyword
-                || last_node.type === this.TYPE_MAPPINGS.Punctuator && !(/^\{\}|\(\)|\[\]$/.test(last_node.value));
+                || last_node.type === this.TYPE_ENUMS.Keyword
+                || last_node.type === this.TYPE_ENUMS.Punctuator && !(/^\{\}|\(\)|\[\]$/.test(last_node.value));
         } else {
             return true;
         }
@@ -274,7 +274,7 @@ export default class extends Tokenizer {
             content = tokens.splice(next, end - next);
         }
         let res: Token = {
-            type: this.TYPE_MAPPINGS.Punctuator,
+            type: this.TYPE_ENUMS.Punctuator,
             value,
             content
         };

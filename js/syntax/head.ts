@@ -14,13 +14,13 @@ import {
 
 
 import {
-    TYPE_MAPPINGS
+    TYPE_ENUMS
 } from "../lexical/index";
 
 import Tokenizer from "../tokenizer"
-let type_punctuator = TYPE_MAPPINGS.Punctuator;
-let type_keyword = TYPE_MAPPINGS.Keyword;
-let type_identifier = TYPE_MAPPINGS.Identifier;
+let type_punctuator = TYPE_ENUMS.Punctuator;
+let type_keyword = TYPE_ENUMS.Keyword;
+let type_identifier = TYPE_ENUMS.Identifier;
 
 
 function _Punctuator(...values: Array<string | number>) {
