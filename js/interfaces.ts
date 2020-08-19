@@ -104,7 +104,6 @@ interface Context extends Array<any> {
     unwrap(): Context,
     store(...args: Array<CONTEXT | any>): number,
     restore(point: number): number,
-    //getToken(index: number): Token
 }
 
 const enum MATCH_STATUS {
@@ -171,7 +170,37 @@ interface Precedence extends Array<any> {
     [PRECEDENCE.RIGHT_ASSOCIATIVE]: number | Number
 }
 type Validate = (token: Token) => boolean;
+
+
+const enum MATCH_MARKS {
+    BOUNDARY = "",
+    DEEPTH = " DEEP",
+    IDENTIFIER = " ID",
+    MATCH_END = " END",
+    TYPE_ONLY = " TYPE",
+    WALKER = " WAL",
+    TERMINAL = " TER"
+    /*
+    FOLLOW = " FOLLOW",
+    NOT = " NOT",
+    OR = " OR",
+    AND = " AND",*/
+}
+
+
+enum NUMERIC_KEYWORD_MAPPINGS {
+    "." = NUMERIC_TYPE.FLOAT | NUMERIC_TYPE.DECIMAL,
+    "x" = NUMERIC_TYPE.HEX,
+    "b" = NUMERIC_TYPE.BINARY,
+    "o" = NUMERIC_TYPE.OCTAL,
+
+    "X" = NUMERIC_TYPE.HEX,
+    "B" = NUMERIC_TYPE.BINARY,
+    "O" = NUMERIC_TYPE.OCTAL,
+};
 export {
+    NUMERIC_KEYWORD_MAPPINGS,
+    MATCH_MARKS,
     Validate,
     PRECEDENCE, Precedence,
     NodeProp,

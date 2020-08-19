@@ -1,17 +1,10 @@
 
 
-import {
-    PRIOR_REGEXP_PUNCTUATORS_TREE,
-    PUNCTUATORS_TREE,
-    NUMERIC_KEYWORD_MAP,
-    TOKEN_TYPE_MAPPERS, TOKEN_TYPE_ENUMS
-} from "./lexical/index";
 import Character from './character'
 import {
-    Position, SourceLocation, Token, SearchTree, NUMERIC_TYPE, Validate
+    Position, SourceLocation, Token, SearchTree, NUMERIC_TYPE, Validate, NUMERIC_KEYWORD_MAPPINGS
 } from "./interfaces";
 
-console.log(23, TOKEN_TYPE_ENUMS,TOKEN_TYPE_MAPPERS);
 
 export default class extends Character {
     constructor(options?: Record<string, any>) {
@@ -22,6 +15,11 @@ export default class extends Character {
         //console.log(333, TOKEN_TYPES,TOKEN_TYPE_MAP);
     }
     tokens: Array<Token>;
+    curly_stack: Array<any>;
+    TYPE_MAPPINGS: Record<string, string | number>;
+    TOKEN_TYPE_MAPPERS: Record<string, string | number>;
+    PUNCTUATORS_TREE: SearchTree;
+    PRIMARY_EXPR_START_PUNCTUATORS_TREE: SearchTree;
     public token_hooks: Record<string, (token: Token, tokenizer: this) => Token> = {};
     public line_number: number;
     public line_start: number;
@@ -41,6 +39,7 @@ export default class extends Character {
         this.error_logs = [];
         this.tokens = [];
         this.terminator_stack = [];
+        this.curly_stack = [];
     }
     tokenize(input: string): Array<Token> {
         this.init(input);
@@ -60,7 +59,7 @@ export default class extends Character {
             if (token) {
                 let hook = this.token_hooks[token.type];
                 hook && (token = hook(token, this));
-                if (this.save_comments || token.type !== TOKEN_TYPE_ENUMS.Comments) {
+                if (this.save_comments || token.type !== this.TYPE_MAPPINGS.Comments) {
                     this.tokens.push(token);
                     return token;
                 }
@@ -91,7 +90,7 @@ export default class extends Character {
             }
         };
     }
-    private match(node: SearchTree) {
+    match(node: SearchTree) {
         let start = this.index, end = this.index;
         let prev_node: Token;
         do {
@@ -104,29 +103,29 @@ export default class extends Character {
             return target.scanner ?
                 target.scanner(this, start) :
                 this.createToken(
-                    TOKEN_TYPE_ENUMS[target.type],
+                    this.TYPE_MAPPINGS[target.type] || target.type,
                     [start, this.index],
                     target.key
                 );
         }
     }
-    private nextIdentifier(): Token | void {
+    nextIdentifier(): Token | void {
         let length = this.inIdentifierStart();
         let token: Token;
         if (length > 0) {
             let start = this.index;
             let str = "";
             do {
-                str += length === 1 ? this.input[this.index] : this._bak;
+                str += length === 1 ? this.input[this.index] : this._volatility;
                 this.index += length;
                 length = this.inIdentifierPart();
             } while (length > 0)
-            let type = TOKEN_TYPE_MAPPERS[" " + str];
+            let type = this.TOKEN_TYPE_MAPPERS[" " + str];
             token = this.createToken(
-                TOKEN_TYPE_ENUMS[type || "Identifier"],
+                this.TYPE_MAPPINGS[type || "Identifier"],
                 [start, this.index]
             );
-            this._bak = str;
+            this._volatility = str;
             if (type && str.length !== this.index - start) {
                 this.err(token);
             }
@@ -136,26 +135,35 @@ export default class extends Character {
         }
         return token;
     }
-    get maybe_regex() {
+    /*get maybe_regex() {
         if (this.input[this.index] === "/") {
             let is_primary_expr_start = (this as any).is_primary_expr_start;
             return is_primary_expr_start !== undefined
                 ? is_primary_expr_start
                 : !this.tokens.length || this.tokens[this.tokens.length - 1].type === TOKEN_TYPE_ENUMS.Punctuator;
         }
+    }*/
+    get is_primary_expr_start() {
+        if (this.tokens.length) {
+            let last_node: any = this.tokens[this.tokens.length - 1];
+            return last_node.type === this.TYPE_MAPPINGS.Keyword
+                || last_node.type === this.TYPE_MAPPINGS.Punctuator && last_node.content === undefined;
+        } else {
+            return true;
+        }
     }
-    private nextPunctuator(): Token | void {
-        return this.match(!this.maybe_regex ? PUNCTUATORS_TREE : PRIOR_REGEXP_PUNCTUATORS_TREE);
+    nextPunctuator(): Token | void {
+        return this.match(!this.is_primary_expr_start ? this.PUNCTUATORS_TREE : this.PRIMARY_EXPR_START_PUNCTUATORS_TREE);
     }
 
-    private nextNumeric(): Token | void {
+    nextNumeric(): Token | void {
         let start = this.index;
         let ch = this.input.charCodeAt(this.index);
         let number: number;
         let flags = NUMERIC_TYPE.DECIMAL;
         let _get_token = () => {
-            this._bak = flags & NUMERIC_TYPE.OCTAL ? (flags & ~NUMERIC_TYPE.DECIMAL) : flags;
-            return this.createToken(TOKEN_TYPE_ENUMS.Numeric, [start, this.index]);
+            this._volatility = flags & NUMERIC_TYPE.OCTAL ? (flags & ~NUMERIC_TYPE.DECIMAL) : flags;
+            return this.createToken(this.TYPE_MAPPINGS.Numeric, [start, this.index]);
         }
         let _get_error = (message: string = "Invalid or unexpected token") => {
             let error = _get_token();
@@ -175,7 +183,7 @@ export default class extends Character {
                     return;
                 }
             case 0x30://"0"
-                flags = NUMERIC_KEYWORD_MAP[this.input[++this.index]];
+                flags = NUMERIC_KEYWORD_MAPPINGS[this.input[++this.index]];
                 if (!flags) {
                     number = decimalValue(this.input.charCodeAt(this.index));
                     if (number >= 0) {
@@ -239,7 +247,7 @@ export default class extends Character {
                 : _get_error();
         }
     }
-    private _nextToken(): Token | void {
+    skipNonsenses() {
         for (let cp: number; this.index < this.end; this.index++) {
             cp = this.input.charCodeAt(this.index);
             switch (true) {
@@ -250,11 +258,16 @@ export default class extends Character {
                     this.line_start = this.index + 1;
                     break;
                 default:
-                    return this.nextIdentifier() ||
-                        this.nextNumeric() ||
-                        this.nextPunctuator();
+                    return true;
             }
         }
+    }
+    private _nextToken() {
+        return this.skipNonsenses() && (
+            this.nextIdentifier() ||
+            this.nextNumeric() ||
+            this.nextPunctuator()
+        );
     }
 }
 

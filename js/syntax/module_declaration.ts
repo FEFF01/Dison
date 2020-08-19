@@ -1,15 +1,19 @@
 import {
     Context, CONTEXT, Token, Node
+    ,MATCH_MARKS
 } from '../interfaces';
 import {
+    async_getter,
     _Punctuator,
     _Keyword,
     _Identifier,
     _Pattern,
-    _Option, _Or, _Series, _NonCollecting, _Mark, TYPE_ALIAS, MATCH_MARKS,
-    validateLineTerminator, NODES, _NonCapturing, join_content, createMatchTree
+    _Option, _Or, _Series, _NonCollecting, _Mark, TYPE_ALIAS,
+    validateLineTerminator, NODES, _NonCapturing, join_content, createMatchTree,
+    
+    extract_success,
+    parse_and_extract,
 } from './head'
-import { parse_and_extract, parse_next_statement } from './index';
 let Grouping = NODES.Grouping;
 
 const STRING_LITERAL_PATTERN = _Or("Literal").pipe(

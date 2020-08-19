@@ -6,15 +6,15 @@ export default class {
     public input: string;
     public index: number;
     public end: number;
-    public _bak: any;
+    public _volatility: any;
     public _scope: any;
     private testCodePoint(regexp: RegExp) {
         if (
             (this.input.charCodeAt(this.index) & 0xfc00) === 0xd800
             && (this.input.charCodeAt(this.index + 1) & 0xfc00) === 0xdc00
         ) {
-            this._bak = this.input[this.index] + this.input[this.index + 1];
-            return regexp.test(this._bak) ? 2 : 0;
+            this._volatility = this.input[this.index] + this.input[this.index + 1];
+            return regexp.test(this._volatility) ? 2 : 0;
         } else {
             return regexp.test(this.input[this.index]) ? 1 : 0;
         }
@@ -88,7 +88,7 @@ export default class {
         /*return /^\x0A|\x0D|\x2028|\x2029$/.test(char);*/
     }
     fromCodePoint(cp: number) {
-        return this._bak = cp < 0x10000
+        return this._volatility = cp < 0x10000
             ? String.fromCharCode(cp)
             : String.fromCharCode(0xd800 + (cp - 0x10000) >> 10)
             + String.fromCharCode(0xdc00 + (cp - 0x10000) & 1023);

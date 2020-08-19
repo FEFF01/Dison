@@ -954,7 +954,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	}(parser_1.Parser));
 	exports.JSXParser = JSXParser;
 
-
 /***/ },
 /* 4 */
 /***/ function(module, exports) {

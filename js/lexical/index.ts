@@ -5,31 +5,6 @@ import {
 import Tokenizer from '../tokenizer'
 import { escape_scan, createSearchTree, MARKS } from './head'
 
-let TOKEN_TYPE_ENUMS: Record<string, string | number> = {
-    Identifier: "Identifier",
-    Keyword: "Keyword",
-    String: "String",
-    Boolean: "Boolean",
-    Numeric: "Numeric",
-    Punctuator: "Punctuator",
-    RegularExpression: "RegularExpression",
-    Template: "Template",
-    TemplateElement: "TemplateElement",
-    Comments: "Comments",
-    Null: "Null"
-};
-
-//const IS_RADIX = NUMERIC_TYPE.BINARY | NUMERIC_TYPE.OCTAL | NUMERIC_TYPE.HEX;
-const NUMERIC_KEYWORD_MAP = {
-    ".": NUMERIC_TYPE.FLOAT | NUMERIC_TYPE.DECIMAL,
-    "x": NUMERIC_TYPE.HEX,
-    "b": NUMERIC_TYPE.BINARY,
-    "o": NUMERIC_TYPE.OCTAL,
-
-    "X": NUMERIC_TYPE.HEX,
-    "B": NUMERIC_TYPE.BINARY,
-    "O": NUMERIC_TYPE.OCTAL,
-};
 
 let TOKEN_TYPE_SET = [
     [
@@ -63,14 +38,6 @@ let TOKEN_TYPE_SET = [
     ["Null", ["null"]]
 ];
 
-const TOKEN_TYPE_MAPPERS = TOKEN_TYPE_SET.reduce(
-    (map, [type, id_set]) => {
-        for (let id of id_set) {
-            map[" " + id] = type;
-        }
-        return map;
-    }, {}
-);
 
 let octal_escape = {
     _state: MATCH_STATUS.ATTACH,
@@ -148,10 +115,18 @@ let not_allow_octal_escape = {
     _error: "Octal escape sequences are not allowed in template strings"
 }
 
-let template_curly_stack = [];
+//let template_curly_stack = [];
 let template_base = {
     type: "Template",
     match_tree: {
+        [MARKS.EOF]: {
+            _state: MATCH_STATUS.END,
+            _error: "Unexpected token",
+            _end(tokenizer: Tokenizer) {
+                tokenizer.curly_stack.shift();
+                return true;
+            }
+        },
         "\\0": { _str: "\0" },
         "\\1": not_allow_octal_escape,
         "\\2": not_allow_octal_escape,
@@ -163,7 +138,7 @@ let template_base = {
         "`": {
             _state: MATCH_STATUS.END,
             _end(tokenizer: Tokenizer) {
-                template_curly_stack.shift();
+                tokenizer.curly_stack.shift();
                 return true;
             }
         },
@@ -176,7 +151,7 @@ let template_base = {
     },
     scanner: escape_scan
 }
-const PUNCTUATORS = [
+const PUNCTUATORS: Array<any> = [
     {
         key: `"`, type: "String",
         match_tree: {
@@ -216,7 +191,7 @@ const PUNCTUATORS = [
         ...template_base,
         escape_scan,
         scanner(tokenizer: Tokenizer, start: number) {
-            template_curly_stack.unshift("`");
+            tokenizer.curly_stack.unshift("`");
             return this.escape_scan(tokenizer, start);
         }
     },
@@ -224,8 +199,7 @@ const PUNCTUATORS = [
         key: "}",
         ...template_base,
         filter(tokenizer: Tokenizer) {
-            let env = template_curly_stack[0];
-            return env === "`";
+            return tokenizer.curly_stack[0] === "`";
         }
     },
     {
@@ -345,18 +319,31 @@ const REGEXP_DESCRIPTOR = {
         }
     }
 };
-const PUNCTUATORS_TREE = createSearchTree(PUNCTUATORS);
-const PRIOR_REGEXP_PUNCTUATORS_TREE = createSearchTree(
-    [REGEXP_DESCRIPTOR],
-    createSearchTree(PUNCTUATORS, ["/="]),
-);
+
+
+//const IS_RADIX = NUMERIC_TYPE.BINARY | NUMERIC_TYPE.OCTAL | NUMERIC_TYPE.HEX;
+
+
+const TYPE_MAPPINGS = {
+    Identifier: "Identifier",
+    Keyword: "Keyword",
+    String: "String",
+    Boolean: "Boolean",
+    Numeric: "Numeric",
+    Punctuator: "Punctuator",
+    RegularExpression: "RegularExpression",
+    Template: "Template",
+    TemplateElement: "TemplateElement",
+    Comments: "Comments",
+    Null: "Null"
+};
 
 
 export {
-    PRIOR_REGEXP_PUNCTUATORS_TREE,
-    PUNCTUATORS_TREE,
-    NUMERIC_KEYWORD_MAP,
-    TOKEN_TYPE_MAPPERS, TOKEN_TYPE_ENUMS
+    TYPE_MAPPINGS,
+    PUNCTUATORS,
+    TOKEN_TYPE_SET,
+    REGEXP_DESCRIPTOR
 }
 
 

@@ -1,7 +1,9 @@
 import {
-    Node, Token, Context, CONTEXT, MATCHED
+    Node, Token, Context, CONTEXT, MATCHED, MatchTree, MATCH_MARKS
 } from '../interfaces';
 import {
+    async_getter,
+    token_hooks,
     _Punctuator,
     _Keyword,
     _Identifier,
@@ -20,31 +22,26 @@ import {
     IDENTIFIER_OR_THROW_STRICT_RESERVED_WORDS_PATTERN,
     EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN,
     TOPLEVEL_ITEM_PATTERN,
-    MATCH_MARKS,
     isAligned,
     attachLocation,
 
     reinterpretIdentifierAsKeyword,
     reinterpretKeywordAsIdentifier,
-} from './head'
-import {
 
     extract_success,
     parse_and_extract,
-    isExpression
-} from './index';
+} from './head'
 
-
-import {
-    TOKEN_TYPE_ENUMS
-} from "../lexical/index";
+import Parser from '../parser'
+import Tokenizer from '../tokenizer'
 
 import {
-    Patterns,
     parseArrayPattern,
     parseObjectPattern
 } from './pattern';
 const Grouping = NODES.Grouping;
+
+init_token_hooks();
 
 function walk_primary_expression(context: Context, index: number) {
     context[CONTEXT.parser].parseRange(PRIMARY_EXPRESSION_TREE, context, index, is_right_parentheses);
@@ -216,7 +213,7 @@ const PrimaryExpressions: Record<string, any> = {
                                     type: "TemplateElement",
                                     value: {
                                         raw: value.slice(1, end),
-                                        cooked: parser._bak
+                                        cooked: parser._volatility
                                     },
                                     tail
                                 }
@@ -227,7 +224,7 @@ const PrimaryExpressions: Record<string, any> = {
                             expressions.push(
                                 parser.parseRangeAsExpression(context, index,
                                     function (token: Token) {
-                                        return token.type === TOKEN_TYPE_ENUMS.Template
+                                        return token.type === parser.TYPE_MAPPINGS.Template
                                             && token.value[0] === "}";
                                     }
                                 )
@@ -398,7 +395,7 @@ const PrimaryExpressions: Record<string, any> = {
     },
 }
 
-const Expressions: Record<string, any> = {
+const Expressions: Record<string, any> = async_getter.Expressions = {
     ...PrimaryExpressions,
     "": PrimaryExpressions[""].concat(
         {
@@ -1082,50 +1079,64 @@ const ObjectProperties = {
 let PRIMARY_EXPRESSION_TREE = createMatchTree(
     PrimaryExpressions
 )
-
-let UNIT_EXPRESSION_TREE = createMatchTree(
-    [Expressions, Patterns],
-    undefined,
-    ["SequenceExpression"]
-);
 let METHOD_DEFINITIONS_TREE = createMatchTree(
     MethodDefinitions, PRIMARY_EXPRESSION_TREE
 );
-let ARRAY_ELEMENTS_TREE = createMatchTree(ArrayElements, UNIT_EXPRESSION_TREE);
-
-
 let PROPERTIES_TREE = createMatchTree(
     Properties,
     PRIMARY_EXPRESSION_TREE
 );
-let OBJECT_PROPERTIES_TREE = createMatchTree(
-    ObjectProperties,
-    UNIT_EXPRESSION_TREE
-);
+let UNIT_EXPRESSION_TREE: MatchTree,
+    ARRAY_ELEMENTS_TREE: MatchTree,
+    OBJECT_PROPERTIES_TREE: MatchTree,
+    PARAMS_TREE: MatchTree,
+    ARGUMENTS_TREE: MatchTree,
+    EXPRESSION_TREE: MatchTree;
 
-const PARAMS_TREE = createMatchTree(
-    Params,
-    UNIT_EXPRESSION_TREE
-);
-const ARGUMENTS_TREE = createMatchTree(
-    Arguments,
-    UNIT_EXPRESSION_TREE
-);
 
-let EXPRESSION_TREE = createMatchTree(
-    { SequenceExpression: Expressions.SequenceExpression }
-    , UNIT_EXPRESSION_TREE
+
+async_getter.get(
+    "Patterns",
+    function (Patterns: Record<string, any>) {
+        UNIT_EXPRESSION_TREE = createMatchTree(
+            [Expressions, Patterns],
+            undefined,
+            ["SequenceExpression"]
+        );
+        ARRAY_ELEMENTS_TREE = createMatchTree(ArrayElements, UNIT_EXPRESSION_TREE);
+
+        OBJECT_PROPERTIES_TREE = createMatchTree(
+            ObjectProperties,
+            UNIT_EXPRESSION_TREE
+        );
+        PARAMS_TREE = createMatchTree(
+            Params,
+            UNIT_EXPRESSION_TREE
+        );
+        ARGUMENTS_TREE = createMatchTree(
+            Arguments,
+            UNIT_EXPRESSION_TREE
+        );
+        EXPRESSION_TREE = createMatchTree(
+            { SequenceExpression: Expressions.SequenceExpression }
+            , UNIT_EXPRESSION_TREE
+        );
+        async_getter.EXPRESSION_TREE = EXPRESSION_TREE;
+        async_getter.UNIT_EXPRESSION_TREE = UNIT_EXPRESSION_TREE;
+    }
 )
 
-for (const type_name in Expressions) {
-    if (type_name) {
-        TYPE_ALIAS[type_name] = [type_name, "[Expression]"];
+
+async_getter.get("Expressions", function (expressions: Record<string, any>) {
+    for (const type_name in expressions) {
+        if (type_name) {
+            TYPE_ALIAS[type_name] = [type_name, "[Expression]"];
+        }
     }
-}
+});
+export default Expressions;
 export {
     Expressions,
-    EXPRESSION_TREE,
-    UNIT_EXPRESSION_TREE,
     parseArrayPattern,
     parseObjectPattern,
     parse_params
@@ -1143,4 +1154,51 @@ function parse_params(context: Context, tokens: Array<Token>) {//
         return extract_success(parser, tokens);
     }
     return [];
+}
+
+
+function init_token_hooks() {
+    function getLiteral(parse_value: (token: Token, tokenizer: Tokenizer) => any, token: Token, tokenizer: Tokenizer) {
+        return {
+            type: "Literal",
+            value: parse_value(token, tokenizer),
+            raw: token.value,
+            range: token.range,
+            loc: token.loc
+        }
+    }
+
+    let getStringLiteral = getLiteral.bind(null, (token: Token, tokenizer: Tokenizer) => tokenizer._volatility);
+    let getRegularLiteral = getLiteral.bind(null, (token: Token, tokenizer: Tokenizer) => {
+        let regex = token.regex;
+        try {
+            return new RegExp(regex.pattern, regex.flags);
+        } catch (e) {
+            return null;
+        }
+    });
+
+    token_hooks.Keyword = function (token: Token, parser: Parser) {
+        let context = parser.context_stack[0];
+        if (!context[CONTEXT.allowYield] && token.value === "yield") {
+            return reinterpretKeywordAsIdentifier(token);
+        }
+        return token;
+    };
+    token_hooks.Identifier = reinterpretKeywordAsIdentifier;
+    token_hooks.Numeric = getLiteral.bind(null, (token: Token) => Number(token.value));
+    token_hooks.Boolean = getLiteral.bind(null, (token: Token) => token.value === "true");
+    token_hooks.String = function (token: Token, parser: Parser) {
+        token = getStringLiteral(token, parser);
+        if (parser._scope.octal && parser.context_stack[0][CONTEXT.strict]) {
+            parser.err(token);
+        }
+        return token;
+    };
+    token_hooks.Null = getLiteral.bind(null, () => null);
+    token_hooks.RegularExpression = function (token: Token, tokenizer: Tokenizer) {
+        let res = getRegularLiteral(token, tokenizer);
+        res.regex = token.regex;
+        return res;
+    };
 }

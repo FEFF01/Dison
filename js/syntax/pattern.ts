@@ -1,23 +1,30 @@
 
 import {
-    Node, Token, Context, CONTEXT
+    Node, Token, Context, CONTEXT, MATCH_MARKS, MatchTree
 } from '../interfaces';
 import {
+    async_getter,
     attachLocation,
     createMatchTree,
     _Option, _Or, _Series, _NonCollecting, _NonCapturing, _Mark,
-    TYPE_ALIAS, _Context, _Loop, NODES, MATCH_MARKS,
-    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, join_content, AWAIT_LIST, TOPLEVEL_ITEM_PATTERN
+    TYPE_ALIAS, _Context, _Loop, NODES,
+    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, join_content, TOPLEVEL_ITEM_PATTERN,
+    extract_success,
+    parse_and_extract,
+    get_inner_group,
 } from './head'
-import { isExpression, isStatementListItem, get_inner_group, parse_and_extract } from './index';
 
-import { UNIT_EXPRESSION_TREE } from './expression';
+//import { UNIT_EXPRESSION_TREE } from './expression';
 const Grouping = NODES.Grouping;
 
+let UNIT_EXPRESSION_TREE: Record<string, any>;
 let PETTERN_ELEMENTS_TREE: Record<string, any>;
 let PATTERN_PROPERTIES_TREE: Record<string, any>;
 
-AWAIT_LIST.push(function () {
+//console.log(123123, UNIT_EXPRESSION_TREE, UNIT_EXPRESSION_TREE);
+
+async_getter.get("UNIT_EXPRESSION_TREE", function (data: MatchTree) {
+    UNIT_EXPRESSION_TREE = data;
     PETTERN_ELEMENTS_TREE = createMatchTree(
         PatternElements,
         UNIT_EXPRESSION_TREE
@@ -29,7 +36,7 @@ AWAIT_LIST.push(function () {
 });
 
 
-const Patterns: Record<string, any> = {
+const Patterns: Record<string, any> = async_getter.Patterns = {
     ArrayPattern: {
         handler(context: Context) {
             let [collected] = context;
@@ -129,7 +136,7 @@ const Patterns: Record<string, any> = {
                 let node = parser.parseNode(
                     UNIT_EXPRESSION_TREE,
                     context,
-                    node => isExpression(node)
+                    node => parser.isExpression(node)
                         || node.type === "ArrayPattern"
                         || node.type === "ObjectPattern"
                         || node.type === "AssignmentPattern",

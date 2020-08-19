@@ -1,13 +1,9 @@
 
 import {
-    Context, CONTEXT, Node, Token
+    Context, CONTEXT, Node, Token, MATCH_MARKS, MatchTree
 } from '../interfaces';
 import {
-    isExpression, isStatement, isStatementListItem,
-    parse_next_statement, get_inner_group,
-} from './index'
-import {
-
+    async_getter,
     _Punctuator,
     _Keyword,
     _Identifier,
@@ -16,7 +12,7 @@ import {
     is_right_brackets,
     is_right_braces,
     createMatchTree,
-    NODES, MATCH_MARKS,
+    NODES,
     _Option, _Or, _Series, _NonCollecting, _Mark, _Loop, TYPE_ALIAS,
     validateBinding, validateLineTerminator, _NonCapturing,
     validateIdentifier, validateAssignment,
@@ -29,18 +25,19 @@ import {
     EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN,
     isAligned,
     attachLocation,
+    get_inner_group,
+    parse_next_statement,
 } from './head'
 import {
-    EXPRESSION_TREE,
     parseArrayPattern,
     parseObjectPattern,
     parse_params
-
 } from './expression';
 import Declaration from './declaration';
-import Parser from '../parser';
+
 const Grouping = NODES.Grouping;
 let { VariableDeclaration } = Declaration;
+
 
 let BLOCK_STATEMENT_PATTERN = _Or(
     "Block",
@@ -68,7 +65,7 @@ let GROUPING_EXPRESSION = _Or(
                 CONTEXT.bindingSet, null,
                 CONTEXT.bindingElement, false
             );
-            parser.parseRange(parser.EXPRESSION_TREE, context, index, is_right_parentheses, isExpression);
+            parser.parseRange(parser.EXPRESSION_TREE, context, index, is_right_parentheses, parser.isExpression);
             context.restore(store);
         }
     )
@@ -83,7 +80,7 @@ let GROUPING_EXPRESSION = _Or(
     }
 )
 
-const Statements: Record<string, any> = {
+const Statements: Record<string, any> = async_getter.Statements = {
     "": {
         handler([collected, parser]: Context) {
             parser.err(collected.error);
@@ -310,7 +307,7 @@ const Statements: Record<string, any> = {
                         function (context: Context, left: number) {
                             let parser = context[CONTEXT.parser];
                             context.wrap(CONTEXT.isExpression, true);
-                            parser.parseRange(FOR_ITERATOR_TREE, context, left, is_right_parentheses, isStatement)
+                            parser.parseRange(FOR_ITERATOR_TREE, context, left, is_right_parentheses, parser.isStatement)
                             context.unwrap();
                         }
                     )
@@ -529,11 +526,13 @@ const Statements: Record<string, any> = {
     }
 };
 
-for (const type_name in Statements) {
-    if (type_name) {
-        type_name && (TYPE_ALIAS[type_name] = [type_name, "[Statement]"]);
+async_getter.get("Statements", function (statements: Record<string, any>) {
+    for (const type_name in statements) {
+        if (type_name) {
+            type_name && (TYPE_ALIAS[type_name] = [type_name, "[Statement]"]);
+        }
     }
-}
+});
 export default Statements;
 
 let ForIterator = {
@@ -671,4 +670,7 @@ let ForIterator = {
         }
     ]
 };
-let FOR_ITERATOR_TREE = createMatchTree(ForIterator, EXPRESSION_TREE);
+let FOR_ITERATOR_TREE: MatchTree;
+async_getter.get("EXPRESSION_TREE", function (EXPRESSION_TREE: MatchTree) {
+    FOR_ITERATOR_TREE = createMatchTree(ForIterator, EXPRESSION_TREE);
+});

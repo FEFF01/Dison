@@ -1,9 +1,10 @@
 
 
 import {
-    Context, CONTEXT, SourceLocation, Node, Token
+    Context, CONTEXT, SourceLocation, Node, Token, MATCH_MARKS, MatchTree
 } from '../interfaces';
 import {
+    async_getter,
     _Punctuator,
     _Keyword,
     _Identifier,
@@ -12,9 +13,9 @@ import {
     STATEMANT_LIST_ITEM_PATTERN,
     TOPLEVEL_ITEM_PATTERN,
     _Option, _Or, _Series, _NonCollecting, _Mark, NODES, TYPE_ALIAS,
-    validateBinding, validateLineTerminator, AWAIT_LIST, createMatchTree, join_content, _NonCapturing, MATCH_MARKS
+    validateBinding, validateLineTerminator, createMatchTree, join_content, _NonCapturing
 } from './head'
-import { Expressions, UNIT_EXPRESSION_TREE } from './expression';
+//import { Expressions, UNIT_EXPRESSION_TREE } from './expression';
 
 let Grouping = NODES.Grouping;
 
@@ -85,11 +86,16 @@ let VariableDeclarators = {
         ]
     }
 }
-let VARIABLE_DECLARATOR_TREE: Record<string, any>;
 
-AWAIT_LIST.push(function () {
-    VARIABLE_DECLARATOR_TREE = createMatchTree(VariableDeclarators, UNIT_EXPRESSION_TREE);
-});
+
+let VARIABLE_DECLARATOR_TREE: MatchTree;
+
+async_getter.get(
+    "UNIT_EXPRESSION_TREE",
+    function (UNIT_EXPRESSION_TREE: MatchTree) {
+        VARIABLE_DECLARATOR_TREE = createMatchTree(VariableDeclarators, UNIT_EXPRESSION_TREE);
+    }
+);
 
 function reinterpreat_expression_as_declaration(context: Context, expr: Node) {
     let [collected, parser] = context;
@@ -107,7 +113,7 @@ function reinterpreat_expression_as_declaration(context: Context, expr: Node) {
     return expr.id;
 }
 
-const Declarations: Record<string, any> = {
+const Declarations: Record<string, any> = async_getter.Declarations = {
     "ClassDeclaration": { //<= ClassExpression
         filter(context: Context, left: number, right: number) {
             let tokens = context.tokens;
@@ -170,8 +176,10 @@ const Declarations: Record<string, any> = {
     ]
 
 };
-for (const type_name in Declarations) {
-    type_name && (TYPE_ALIAS[type_name] = [type_name, "[Declaration]"]);
-}
+async_getter.get("Declarations", function (declarations: Record<string, any>) {
+    for (const type_name in declarations) {
+        type_name && (TYPE_ALIAS[type_name] = [type_name, "[Declaration]"]);
+    }
 
+})
 export default Declarations;

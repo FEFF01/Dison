@@ -127,7 +127,7 @@ function escape_scan(
     }
     function _finally() {
         tokenizer._scope = scope;
-        tokenizer._bak = str;
+        tokenizer._volatility = str;
         return tokenizer.createToken(
             self.type,
             [start, tokenizer.index],
@@ -158,7 +158,7 @@ function escape_scan(
                 error || (error = "Invalid or unexpected token");
             case MATCH_STATUS.NEXT:
                 if (node._next) {
-                    tokenizer._bak = str;
+                    tokenizer._volatility = str;
                     return node._next(tokenizer, scope, start, error);
                 }
                 break;

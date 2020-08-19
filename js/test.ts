@@ -1,10 +1,11 @@
-
+/*
 import Tokenizer from "./tokenizer"
-import Parser from "./parser"
+import Parser from "./parser"*/
+import Dison, { Tokenizer } from './index';
 
 let esprima = require("./test/esprima.js")
 
-const parser = new Parser();
+const parser = new Dison();
 
 import data1 from './test/test_data1.js'
 import data2 from './test/test_data2.js'
@@ -16,7 +17,7 @@ import data7 from './test/test_data7.js'
 
 let data0 = (window as any).test.innerHTML;
 
-let test_data = data7
+let test_data = data2
 let a, b;
 
 console.time("dison");

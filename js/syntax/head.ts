@@ -8,14 +8,19 @@ import {
     Node, Pipe, Connector,
     Matched, CONTEXT, Context, Token, SourceLocation,
     MATCHED,
-    /*PRECEDENCE_FEATURES,*/ PRECEDENCE, Precedence as PrecedenceInterface, MATCHED_RECORDS, Validate,
+    MATCH_MARKS,
+    /*PRECEDENCE_FEATURES,*/ PRECEDENCE, Precedence as PrecedenceInterface, MATCHED_RECORDS, Validate
 } from '../interfaces';
 
+
+import {
+    TYPE_MAPPINGS
+} from "../lexical/index";
+
 import Tokenizer from "../tokenizer"
-import { TOKEN_TYPE_ENUMS } from '../lexical/index'
-let type_punctuator = TOKEN_TYPE_ENUMS.Punctuator;
-let type_keyword = TOKEN_TYPE_ENUMS.Keyword;
-let type_identifier = TOKEN_TYPE_ENUMS.Identifier;
+let type_punctuator = TYPE_MAPPINGS.Punctuator;
+let type_keyword = TYPE_MAPPINGS.Keyword;
+let type_identifier = TYPE_MAPPINGS.Identifier;
 
 
 function _Punctuator(...values: Array<string | number>) {
@@ -35,20 +40,6 @@ function _Pattern(...args: Array<string | number>) {
 }
 
 import Parser from '../parser'
-const enum MATCH_MARKS {
-    BOUNDARY = "",
-    DEEPTH = " DEEP",
-    IDENTIFIER = " ID",
-    MATCH_END = " END",
-    TYPE_ONLY = " TYPE",
-    WALKER = " WAL",
-    TERMINAL = " TER"
-    /*
-    FOLLOW = " FOLLOW",
-    NOT = " NOT",
-    OR = " OR",
-    AND = " AND",*/
-}
 let OPERATOR_ID = 0;
 
 function _calc_nth(props: Array<NodeProp>, key: string | Mark | Cover) {
@@ -661,7 +652,7 @@ function validateLineTerminator(context: Context) {
         let next_token = context.getToken(right + 1);
         if (
             next_token
-            && !(next_token.type === TOKEN_TYPE_ENUMS.Punctuator && next_token.value === "}")
+            && !(next_token.type === type_punctuator && next_token.value === "}")
             && next_token.loc.start.line === collected.loc.end.line
         ) {
             parser.err(next_token);
@@ -685,7 +676,6 @@ let TYPE_ALIAS = {};
 
 const ASSIGNMENT_PUNCTUATORS_PATTERN = _Or("Punctuator = += -= **= *= /= %= <<= >>= >>>= &= ^= |=");
 
-let AWAIT_LIST: Array<() => void> = [];
 
 const MODULE_ITEM_PATTERN = _Or(
     "ImportDeclaration",
@@ -727,7 +717,7 @@ function attachLocation(source: Node, start: Node, end: Node = start) {
 
 
 function reinterpretKeywordAsIdentifier({ value, range, loc }: Token, tokenizer?: Tokenizer): Node {
-    let name = tokenizer ? tokenizer._bak : value;
+    let name = tokenizer ? tokenizer._volatility : value;
     let identifier = {
         type: "Identifier", name, range, loc
     };
@@ -757,7 +747,127 @@ function _Validate(type: string | number, value: string): Validate {
 let is_right_parentheses = _Validate(type_punctuator, ")");
 let is_right_brackets = _Validate(type_punctuator, "]");
 let is_right_braces = _Validate(type_punctuator, "}");
+
+
+
+function extract_success(parser: Parser, nodes: Array<Node>) {
+    let res: Array<Node> = nodes;
+    if (nodes.length) {
+        let index = 0;
+        if (nodes[0].type === "Success") {
+            index = 1;
+            res = nodes[0].content;
+        } else {
+            res = [];
+        }
+        if (nodes.length > index) {
+            parser.err(...nodes.slice(index));
+        }
+    }
+    return res;
+}
+
+function parse_and_extract(match_tree: Record<string, any>, context: Context, node: Node) {
+    let [, parser] = context;
+    let tokens = node.content;
+    if (tokens.length) {
+        context.wrap(CONTEXT.tokens, tokens)
+        //context[CONTEXT.tokens] = tokens;
+        parser.parseCustom(match_tree, context);
+        tokens = extract_success(parser, tokens)
+        context.unwrap();
+    }
+    return tokens;
+}
+
+function get_inner_group(token: Token) {
+    while (
+        token.content.length === 1
+        && token.content[0].value === "()"
+        && token.content[0].type === type_punctuator
+    ) {
+        token = token.content[0];
+    }
+    return token;
+}
+
+function parse_next_statement(context: Context, start = context[CONTEXT.right] + 1) {
+    let parser = context[CONTEXT.parser];
+    if (
+        parser.parseCustom(
+            parser.SYNTAX_TREE,
+            context,
+            start,
+            parser.isStatementListItem
+        )
+    ) {
+        return 0;
+    }
+}
+let token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer | Parser) => Token> = {};
+function AsyncGetter() {
+    let await_tasks = {};
+    let async_data = {};
+    let is_open = false;
+    let async_mapper: Record<string, any> = {
+        open() {
+            is_open = true;
+            let tasks = [];
+            for (const key in await_tasks) {
+                if (async_data.hasOwnProperty(key)) {
+                    let data = async_data[key];
+                    for (let task of await_tasks[key]) {
+                        tasks.push([task, data]);
+                    }
+                }
+            }
+            for (const task of tasks) {
+                task[0](task[1]);
+            }
+        },
+        get(key: string, callback: (data: any) => any) {
+            if (await_tasks[key]) {
+                await_tasks[key].push(callback);
+                if (is_open && async_data.hasOwnProperty(key)) {
+                    callback(async_data[key]);
+                }
+            } else {
+                if (async_mapper.hasOwnProperty(key)) {
+                    async_data[key] = async_mapper[key];
+                    is_open && callback(async_data[key]);
+                }
+                Object.defineProperty(async_mapper, key, {
+                    enumerable: true,
+                    configurable: true,
+                    set(data: any) {
+                        if (async_data.hasOwnProperty(key)) {
+                            debugger;
+                        }
+                        async_data[key] = data;
+                        if (is_open) {
+                            for (const cbfun of await_tasks[key]) {
+                                cbfun(data);
+                            }
+                        }
+                    },
+                    get() {
+                        return async_data[key];
+                    }
+                });
+                await_tasks[key] = [callback];
+            }
+        }
+    };
+    return async_mapper;
+}
+let async_getter = AsyncGetter();
 export {
+    async_getter,
+    token_hooks,
+    parse_next_statement,
+    get_inner_group,
+    extract_success,
+    parse_and_extract,
     _Punctuator,
     _Keyword,
     _Identifier,
@@ -774,7 +884,6 @@ export {
     STATEMANT_LIST_ITEM_PATTERN,
     RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN,
     TOPLEVEL_ITEM_PATTERN,
-    AWAIT_LIST,
     join_content,
     IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
     EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
@@ -784,7 +893,6 @@ export {
     validateBinding, validateLineTerminator,
     NODES,
     TYPE_ALIAS,
-    MATCH_MARKS,
     createMatchTree,
     isRestrictedWord,
     isFutureReservedWord,

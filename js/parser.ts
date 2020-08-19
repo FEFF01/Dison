@@ -1,4 +1,4 @@
-console.time("init");
+
 import Tokenizer from "./tokenizer"
 import {
     NodeProp,
@@ -10,36 +10,21 @@ import {
     Mark as MarkInterface,
     SearchTree, NUMERIC_TYPE, Context, CONTEXT,
     SourceLocation,
-    PRECEDENCE, Precedence, Validate
+    PRECEDENCE, Precedence, Validate, MATCH_MARKS
 } from "./interfaces";
-import {
-    SYNTAX_TREE,
-    MATCH_MARKS,
-    EXPRESSION_TREE,
-    isExpression, isStatementListItem,
-    token_hooks,
-} from "./syntax/index";
-import { _Context, TYPE_ALIAS, NODES, AWAIT_LIST, Mark, Cover, attachLocation } from "./syntax/head";
 
+import { _Context, TYPE_ALIAS, NODES, Mark, Cover, attachLocation } from "./syntax/head";
 
-import {
-    TOKEN_TYPE_ENUMS
-} from "./lexical/index";
 type Extreme = MatchedRecords;
 type Longest = MatchedRecords;
-for (const cbfun of AWAIT_LIST) {
-    cbfun();
-}
-console.timeEnd("init");
-console.log(SYNTAX_TREE);
 
 const { Script, Module } = NODES;
 
 
 export default class extends Tokenizer {
-    SYNTAX_TREE = SYNTAX_TREE;
-    EXPRESSION_TREE = EXPRESSION_TREE;
-    TYPE_ALIAS = TYPE_ALIAS;
+    SYNTAX_TREE: Record<string, any>;
+    EXPRESSION_TREE: Record<string, any>;
+    TYPE_ALIAS: Record<string, string[]> = TYPE_ALIAS;
     padding_token: Token = {
         type: MATCH_MARKS.BOUNDARY,
         value: MATCH_MARKS.BOUNDARY
@@ -47,23 +32,22 @@ export default class extends Tokenizer {
     error_logs: Array<any>;
     save_comments = false;
     context_stack: Array<Context>;
+    isExpression: (token: Token) => boolean;
+    isStatement: (token: Token) => boolean;
+    isStatementListItem: (token: Token) => boolean;
     get is_primary_expr_start() {
         if (this.tokens.length) {
             let last_node: any = this.tokens[this.tokens.length - 1];
-            return isStatementListItem(last_node)
-                || last_node.type === TOKEN_TYPE_ENUMS.Keyword
-                || (
-                    last_node.type === TOKEN_TYPE_ENUMS.Punctuator
-                    &&
-                    !last_node.hasOwnProperty("content")
-                );
+            return this.isStatementListItem(last_node)
+                || last_node.type === this.TYPE_MAPPINGS.Keyword
+                || last_node.type === this.TYPE_MAPPINGS.Punctuator && !(/^\{\}|\(\)|\[\]$/.test(last_node.value));
         } else {
             return true;
         }
     }
-    token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer) => Token> = token_hooks;
+    //token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer) => Token> = token_hooks;
     err(...args: any) {
-        debugger;
+        //debugger;
         this.error_logs.push.apply(this.error_logs, args);
     }
     constructor() {
@@ -90,7 +74,7 @@ export default class extends Tokenizer {
     }
     parseExpression(context: Context): Node {
         context.wrap(CONTEXT.isExpression, true);
-        let res = this.parseNode(EXPRESSION_TREE, context, isExpression);
+        let res = this.parseNode(this.EXPRESSION_TREE, context, this.isExpression);
         context.unwrap();
         return res;
     }
@@ -133,7 +117,7 @@ export default class extends Tokenizer {
         lexcal_terminator: Validate,
     ): Node {
         context.wrap(CONTEXT.isExpression, true);
-        let res = this.parseRangeAsNode(EXPRESSION_TREE, context, left, lexcal_terminator, isExpression);
+        let res = this.parseRangeAsNode(this.EXPRESSION_TREE, context, left, lexcal_terminator, this.isExpression);
         context.unwrap();
         return res;
     }
@@ -146,11 +130,11 @@ export default class extends Tokenizer {
         //this.parseBlock(context);
         let tokens = context.tokens;
         this.parseCustom(
-            SYNTAX_TREE,
+            this.SYNTAX_TREE,
             context
         );
         if (tokens.length) {
-            if (!isStatementListItem(tokens[tokens.length - 1])) {
+            if (!this.isStatementListItem(tokens[tokens.length - 1])) {
                 this.err(tokens.pop());
             }
         }
@@ -277,7 +261,7 @@ export default class extends Tokenizer {
             end += 1;
             this.err(before_token);
         }
-        let content: any, next = left + 1;
+        let content: any = null, next = left + 1;
         if (test) {
             if (test(tokens[next])) {
                 content = tokens[next];
@@ -290,7 +274,7 @@ export default class extends Tokenizer {
             content = tokens.splice(next, end - next);
         }
         let res: Token = {
-            type: TOKEN_TYPE_ENUMS.Punctuator,
+            type: this.TYPE_MAPPINGS.Punctuator,
             value,
             content
         };
@@ -417,7 +401,7 @@ export default class extends Tokenizer {
         let token: any, res: any;
         context[CONTEXT.collected] = node;
 
-        function restore_volatile() {
+        function restore_volatility() {
             context[CONTEXT.left] = left;
             context[CONTEXT.right] = right;
             context[CONTEXT.matched] = matched;
@@ -428,7 +412,7 @@ export default class extends Tokenizer {
             [key, nth, pipes] = prop as any;
             if (key instanceof Mark) {
                 token = key.data(context, offset);
-                restore_volatile();
+                restore_volatility();
                 if (token === undefined) {
                     continue;
                 }
@@ -439,7 +423,7 @@ export default class extends Tokenizer {
                 for (let i in pipes) {
                     res = pipes[i](context, token, offset);
                     res === undefined || (token = res);
-                    restore_volatile();
+                    restore_volatility();
                 }
                 if (key instanceof Cover) {
                     if (key.value === null) {
