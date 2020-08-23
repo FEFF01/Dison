@@ -1,5 +1,5 @@
 import {
-    Node, Token, Context, CONTEXT, MATCHED, MatchTree, MATCH_MARKS
+    Node, Token, Context, CONTEXT, MATCHED, MatchTree, MARKS
 } from '../interfaces';
 import {
     async_getter,
@@ -844,7 +844,7 @@ const MethodDefinitions = {
         precedence: 0,
         collector: [
             {
-                success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
+                success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
                 content: "MethodDefinition",
             }
         ]
@@ -855,7 +855,7 @@ const MethodDefinitions = {
             return [];
         },
         collector: {
-            _: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+            _: _NonCapturing(MARKS.BOUNDARY, "Success"),
             __: "Punctuator ;"
         }
     },
@@ -873,7 +873,7 @@ const MethodDefinitions = {
         },
         collector: [
             {
-                _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+                _prev: _NonCapturing(MARKS.BOUNDARY, "Success"),
                 key: _Mark(""),
                 static: _Mark(true),
                 computed: _Mark(false),
@@ -890,7 +890,7 @@ const MethodDefinitions = {
     FunctionExpression: {
         collector: [
             {
-                _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+                _prev: _NonCapturing(MARKS.BOUNDARY, "Success"),
                 static: _Option(_NonCapturing("Identifier static")),
                 async: _Or(
                     _Series(_Mark(true), _NonCollecting("Identifier async")),
@@ -927,9 +927,9 @@ const Arguments = {
         handler: join_content,
         //precedence: 0,
         collector: {
-            success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
+            success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
             content: _Or("SpreadElement", EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN),
-            _: _Or(_NonCollecting("Punctuator ,"), MATCH_MARKS.BOUNDARY, _NonCapturing("Punctuator )")),
+            _: _Or(_NonCollecting("Punctuator ,"), MARKS.BOUNDARY, _NonCapturing("Punctuator )")),
         }
     }
 }
@@ -945,9 +945,9 @@ const Params = {
         },
         collector: [
             {
-                success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
+                success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
                 content: "AssignmentPattern",
-                _: _Or(_NonCollecting("Punctuator ,", MATCH_MARKS.BOUNDARY), _NonCapturing("Punctuator )")),
+                _: _Or(_NonCollecting("Punctuator ,", MARKS.BOUNDARY), _NonCapturing("Punctuator )")),
             },
             [
                 "content", _Or("Identifier").pipe(
@@ -959,7 +959,7 @@ const Params = {
             ["content", _Or("ArrayPattern", "ObjectPattern")],
             [
                 ["content", "RestElement"],
-                ["_", _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), _NonCapturing("Punctuator )"))]
+                ["_", _Or(_NonCollecting(MARKS.BOUNDARY), _NonCapturing("Punctuator )"))]
             ]
         ]
     }
@@ -971,9 +971,9 @@ const ArrayElements = {
         precedence: 0,
         collector: [
             {
-                success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
+                success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
                 content: _Or("SpreadElement", EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN),
-                _: _NonCollecting("Punctuator ,", MATCH_MARKS.BOUNDARY),
+                _: _NonCollecting("Punctuator ,", MARKS.BOUNDARY),
             },
             [
                 ["content", _Mark(null)],
@@ -1002,7 +1002,7 @@ const Properties = {
         },
         collector: [
             {
-                _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Punctuator ,", "ObjectProperty"),
+                _prev: _NonCapturing(MARKS.BOUNDARY, "Punctuator ,", "ObjectProperty"),
                 async: _Option(_NonCollecting("Identifier async")),
                 generator: _Option(_NonCollecting("Punctuator *")),
                 kind: _Mark("init"),
@@ -1010,7 +1010,7 @@ const Properties = {
                 key: PROPERTY_NAME_PATTERN,
                 value: _Series(PARAMS_PATTERN, BODY_PATTERN),
                 _next: _Or(
-                    _NonCollecting(MATCH_MARKS.BOUNDARY, "Punctuator ,"),
+                    _NonCollecting(MARKS.BOUNDARY, "Punctuator ,"),
                     _NonCapturing("Punctuator }")
                 ),
                 //_NonCapturing(MATCH_MARKS.BOUNDARY, "Punctuator ,", "Punctuator }"),
@@ -1038,7 +1038,7 @@ const ObjectProperties = {
         precedence: 0,
         collector: [
             {
-                success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
+                success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
                 content: _Or(
                     "Property",
                     _Or("ObjectProperty").pipe(
@@ -1053,13 +1053,13 @@ const ObjectProperties = {
     "Property": {
         collector: [
             {
-                _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+                _prev: _NonCapturing(MARKS.BOUNDARY, "Success"),
                 key: PROPERTY_NAME_PATTERN,//"TemplateLiteral"
                 value: _Series(
                     _NonCollecting("Punctuator :"),
                     EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN
                 ),
-                _next: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY, "Punctuator ,"), _NonCapturing("Punctuator }")),
+                _next: _Or(_NonCollecting(MARKS.BOUNDARY, "Punctuator ,"), _NonCapturing("Punctuator }")),
                 kind: _Mark("init"),
                 computed: _Mark(false),
                 method: _Mark(false),
@@ -1136,6 +1136,7 @@ async_getter.get("Expressions", function (expressions: Record<string, any>) {
 });
 export default Expressions;
 export {
+    PrimaryExpressions,
     Expressions,
     parseArrayPattern,
     parseObjectPattern,
@@ -1190,7 +1191,7 @@ function init_token_hooks() {
     token_hooks.Boolean = getLiteral.bind(null, (token: Token) => token.value === "true");
     token_hooks.String = function (token: Token, parser: Parser) {
         token = getStringLiteral(token, parser);
-        if (parser._scope.octal && parser.context_stack[0][CONTEXT.strict]) {
+        if (parser._scopes.octal && parser.context_stack[0][CONTEXT.strict]) {
             parser.err(token);
         }
         return token;

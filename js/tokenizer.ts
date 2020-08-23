@@ -2,7 +2,7 @@
 
 import Character from './character'
 import {
-    Position, SourceLocation, Token, SearchTree, NUMERIC_TYPE, Validate, NUMERIC_KEYWORD_MAPPINGS
+    Position, SourceLocation, Token, SearchTree, NUMERIC_TYPE, Validate, NUMERIC_KEYWORD_MAPPINGS, MARKS
 } from "./interfaces";
 
 
@@ -97,7 +97,7 @@ export default class extends Character {
             prev_node = node;
             node = prev_node[this.input[end++]];
         } while (node)
-        let target: any = prev_node.__;
+        let target: any = prev_node[MARKS.END];
         if (target && (target.type || (target = target(this)))) {
             this.index = end - 1;
             return target.scanner ?

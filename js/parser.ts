@@ -10,7 +10,7 @@ import {
     Mark as MarkInterface,
     SearchTree, NUMERIC_TYPE, Context, CONTEXT,
     SourceLocation,
-    PRECEDENCE, Precedence, Validate, MATCH_MARKS
+    PRECEDENCE, Precedence, Validate, MARKS, MatchTree
 } from "./interfaces";
 
 import { _Context, TYPE_ALIAS, NODES, Mark, Cover, attachLocation } from "./syntax/head";
@@ -22,15 +22,16 @@ const { Script, Module } = NODES;
 
 
 export default class extends Tokenizer {
-    SYNTAX_TREE: Record<string, any>;
-    EXPRESSION_TREE: Record<string, any>;
+    SYNTAX_TREE: MatchTree;
+    EXPRESSION_TREE: MatchTree;
     TYPE_ALIAS: Record<string, string[]> = TYPE_ALIAS;
     padding_token: Token = {
-        type: MATCH_MARKS.BOUNDARY,
-        value: MATCH_MARKS.BOUNDARY
+        type: MARKS.BOUNDARY,
+        value: MARKS.BOUNDARY
     };
     error_logs: Array<any>;
     save_comments = false;
+    match_tree_stack: Array<MatchTree>;
     context_stack: Array<Context>;
     isExpression: (token: Token) => boolean;
     isStatement: (token: Token) => boolean;
@@ -79,7 +80,7 @@ export default class extends Tokenizer {
         return res;
     }
     parseNode(
-        match_tree: Record<string, any>,
+        match_tree: MatchTree,
         context: Context,
         test: (node: Node) => boolean
     ): Node {
@@ -99,7 +100,7 @@ export default class extends Tokenizer {
         return res;
     }
     parseRangeAsNode(
-        match_tree: Record<string, any>,
+        match_tree: MatchTree,
         context: Context,
         left: number,
         lexcal_terminator: Validate,
@@ -123,6 +124,7 @@ export default class extends Tokenizer {
     }
     private _parse(input: string, ...environments: Array<number | any>) {
         //this.logs = [];
+        this.match_tree_stack = [];
         this.context_stack = [];
         this.init(input);
         let context = _Context(this);
@@ -145,7 +147,7 @@ export default class extends Tokenizer {
         return this.tokens;
     }
     parseCustom(
-        root: Record<string, any>,
+        root: MatchTree,
         context: Context,
         begin: number = 0,
         test?: Function
@@ -157,6 +159,7 @@ export default class extends Tokenizer {
         let extreme: Extreme;
         let state: number;
         this.context_stack.unshift(context);
+        this.match_tree_stack.unshift(root);
         while (true) {
             if (cursor < begin || context.getToken(cursor)) {
                 if (
@@ -224,6 +227,7 @@ export default class extends Tokenizer {
                 ) {
                     context.restore(point);
                     this.context_stack.shift();
+                    this.match_tree_stack.shift();
                     return context.getToken(begin);
                 }
                 cursor = extreme[MATCHED_RECORDS.left];
@@ -234,10 +238,11 @@ export default class extends Tokenizer {
             backflow_tape.splice(cursor + 1, backflow_tape.length - (cursor + 1));
         }
         this.context_stack.shift();
+        this.match_tree_stack.shift();
         context.restore(point);
     }
     parseRange(
-        match_tree: Record<string, any>,
+        match_tree: MatchTree,
         context: Context,
         left: number,
         lexcal_terminator: Validate,
@@ -283,7 +288,7 @@ export default class extends Tokenizer {
         return res;
     }
     walk(
-        root: Record<string, any>,
+        root: MatchTree,
         context: Context,
         start: number,
         backflow_tape: Array<number>,
@@ -311,16 +316,16 @@ export default class extends Tokenizer {
                 ];
             }
         }
-        function explore(parent: Record<string, any>, index: number): Longest {
+        function explore(parent: MatchTree, index: number): Longest {
 
             let res: Longest;
             let matched: Matched;
-            if (parent[MATCH_MARKS.WALKER]) {
-                parent[MATCH_MARKS.WALKER](context, index - 1);
+            if (parent[MARKS.WALKER]) {
+                parent[MARKS.WALKER](context, index - 1);
             }
-            if (parent[MATCH_MARKS.TERMINAL]) {
+            if (parent[MARKS.TERMINAL]) {
                 if (!(index - 1 <= minimum)) {
-                    matched = parent[MATCH_MARKS.MATCH_END];
+                    matched = parent[MARKS.END];
                     if (matched && (res = get_records(matched, index - 1))) {
                         minimum = index - 1;
                     }
@@ -339,12 +344,12 @@ export default class extends Tokenizer {
                 has_backflow = true;
                 backflow_tape.push(start);
             }
-            let matched_node: Record<string, any>;
+            let matched_node: MatchTree;
             let alias = TYPE_ALIAS[token.type];
             let cursor = 0, length = 1, type: string | number;
             let longest: Longest;
-            let node: Record<string, any>;
-            let value_node: Record<string, any>, type_node: Record<string, any>;
+            let node: MatchTree;
+            let value_node: MatchTree, type_node: MatchTree;
             if (alias) {
                 length = alias.length;
                 type = alias[cursor];
@@ -360,14 +365,14 @@ export default class extends Tokenizer {
                             && (res = explore(value_node, index + 1))
                         )
                         && !(
-                            (type_node = node[MATCH_MARKS.TYPE_ONLY])
+                            (type_node = node[MARKS.TYPE_ONLY])
                             && (res = explore(type_node, index + 1))
                         )
                         && !(index <= minimum)
                     ) {
                         if (
-                            matched = (matched_node = value_node) && matched_node[MATCH_MARKS.MATCH_END]
-                            || (matched_node = type_node) && matched_node[MATCH_MARKS.MATCH_END]
+                            matched = (matched_node = value_node) && matched_node[MARKS.END]
+                            || (matched_node = type_node) && matched_node[MARKS.END]
                         ) {
                             if (
                                 (res = get_records(matched, index))

@@ -5,15 +5,6 @@ declare function _Keyword(...values: Array<string | number>): Or;
 declare function _Identifier(...values: Array<string | number>): Or;
 declare function _Pattern(...args: Array<string | number>): Or;
 import Parser from '../parser';
-declare const enum MATCH_MARKS {
-    BOUNDARY = "",
-    DEEPTH = " DEEP",
-    IDENTIFIER = " ID",
-    MATCH_END = " END",
-    TYPE_ONLY = " TYPE",
-    WALKER = " WAL",
-    TERMINAL = " TER"
-}
 declare abstract class Operator {
     operands: Operands;
     private _factors;
@@ -92,7 +83,6 @@ declare function validateLineTerminator(context: Context): Record<string, any>;
 declare let join_content: ([collected]: Context) => any;
 declare let TYPE_ALIAS: {};
 declare const ASSIGNMENT_PUNCTUATORS_PATTERN: Or;
-declare let AWAIT_LIST: Array<() => void>;
 declare const STATEMANT_LIST_ITEM_PATTERN: Or;
 declare const RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN: Or;
 declare const TOPLEVEL_ITEM_PATTERN: Or;
@@ -104,4 +94,10 @@ declare function _Validate(type: string | number, value: string): Validate;
 declare let is_right_parentheses: Validate;
 declare let is_right_brackets: Validate;
 declare let is_right_braces: Validate;
-export { _Punctuator, _Keyword, _Identifier, _Pattern, is_right_parentheses, is_right_brackets, is_right_braces, _Validate, reinterpretIdentifierAsKeyword, reinterpretKeywordAsIdentifier, attachLocation, Cover, Mark, isAligned, STATEMANT_LIST_ITEM_PATTERN, RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN, TOPLEVEL_ITEM_PATTERN, AWAIT_LIST, join_content, IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN, EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN, IDENTIFIER_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, ASSIGNMENT_PUNCTUATORS_PATTERN, validateBinding, validateLineTerminator, NODES, TYPE_ALIAS, MATCH_MARKS, createMatchTree, isRestrictedWord, isFutureReservedWord, isStrictModeReservedWord, validateIdentifier, validateAssignment, _Context, _Option, _Or, _Series, _NonCapturing, _NonCollecting, _Mark, _Loop, };
+declare function extract_success(parser: Parser, nodes: Array<Node>): Node[];
+declare function parse_and_extract(match_tree: Record<string, any>, context: Context, node: Node): any;
+declare function get_inner_group(token: Token): Token;
+declare function parse_next_statement(context: Context, start?: number): number;
+declare let token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer | Parser) => Token>;
+declare let async_getter: Record<string, any>;
+export { async_getter, token_hooks, parse_next_statement, get_inner_group, extract_success, parse_and_extract, _Punctuator, _Keyword, _Identifier, _Pattern, is_right_parentheses, is_right_brackets, is_right_braces, _Validate, reinterpretIdentifierAsKeyword, reinterpretKeywordAsIdentifier, attachLocation, Cover, Mark, isAligned, STATEMANT_LIST_ITEM_PATTERN, RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN, TOPLEVEL_ITEM_PATTERN, join_content, IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN, EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN, IDENTIFIER_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, ASSIGNMENT_PUNCTUATORS_PATTERN, validateBinding, validateLineTerminator, NODES, TYPE_ALIAS, createMatchTree, isRestrictedWord, isFutureReservedWord, isStrictModeReservedWord, validateIdentifier, validateAssignment, _Context, _Option, _Or, _Series, _NonCapturing, _NonCollecting, _Mark, _Loop, };

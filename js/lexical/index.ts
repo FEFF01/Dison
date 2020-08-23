@@ -1,9 +1,9 @@
 import {
-    Token, NUMERIC_TYPE, MATCH_STATUS
+    Token, NUMERIC_TYPE, MARKS
 } from '../interfaces';
 
 import Tokenizer from '../tokenizer'
-import { escape_scan, createSearchTree, MARKS } from './head'
+import { _Scanner, createSearchTree } from './head'
 
 
 let TOKEN_TYPE_SET = [
@@ -40,11 +40,11 @@ let TOKEN_TYPE_SET = [
 
 
 let octal_escape = {
-    _state: MATCH_STATUS.ATTACH,
-    _attach(tokenizer: Tokenizer, scope: Record<string, any>) {
+    //_state: MATCH_STATUS.ATTACH,
+    [MARKS.ATTACH](tokenizer: Tokenizer, self: Record<string, any>) {
         let code = tokenizer.octalValue(tokenizer.input.charCodeAt(tokenizer.index - 1));
         let value = 0;
-        code && (scope.octal = true);
+        code && (self.octal = true);
         let len = code <= 3 ? 2 : 1;
         while (true) {
             value = value * 8 + code;
@@ -52,7 +52,7 @@ let octal_escape = {
             if (code < 0 || --len < 0) {
                 break;
             }
-            scope.octal = true;
+            self.octal = true;
             tokenizer.index += 1;
         }
         return String.fromCharCode(value);
@@ -69,17 +69,17 @@ let octal_escape_tree = {
     "\\7": octal_escape,
 }
 
-let strbase_match_tree = {
-    "\\\n": { _str: "" },
-    "\\n": { _str: "\n" },
-    "\\r": { _str: "\r" },
-    "\\t": { _str: "\t" },
-    "\\b": { _str: "\b" },
-    "\\f": { _str: "\f" },
-    "\\v": { _str: "\v" },
+let strbase_scan_tree = {
+    "\\\n": { [MARKS.STRING]: "" },
+    "\\n": { [MARKS.STRING]: "\n" },
+    "\\r": { [MARKS.STRING]: "\r" },
+    "\\t": { [MARKS.STRING]: "\t" },
+    "\\b": { [MARKS.STRING]: "\b" },
+    "\\f": { [MARKS.STRING]: "\f" },
+    "\\v": { [MARKS.STRING]: "\v" },
     "\\u": {
-        _state: MATCH_STATUS.ATTACH,
-        _attach(tokenizer: Tokenizer) {
+        //_state: MATCH_STATUS.ATTACH,
+        [MARKS.ATTACH](tokenizer: Tokenizer) {
             if (tokenizer.input[tokenizer.index] === "{") {
                 tokenizer.index++;
                 let [code] = tokenizer.scanHex();
@@ -99,8 +99,8 @@ let strbase_match_tree = {
         }
     },
     "\\x": {
-        _state: MATCH_STATUS.ATTACH,
-        _attach(tokenizer: Tokenizer) {
+        //_state: MATCH_STATUS.ATTACH,
+        [MARKS.ATTACH](tokenizer: Tokenizer) {
             let [code, len] = tokenizer.scanHex(2);
             if (len === 2) {
                 return String.fromCharCode(code);
@@ -111,23 +111,23 @@ let strbase_match_tree = {
 };
 
 let not_allow_octal_escape = {
-    _state: MATCH_STATUS.ERROR,
-    _error: "Octal escape sequences are not allowed in template strings"
+    //_state: MATCH_STATUS.ERROR,
+    [MARKS.ERROR]: "Octal escape sequences are not allowed in template strings"
 }
 
 //let template_curly_stack = [];
 let template_base = {
     type: "Template",
-    match_tree: {
+    scan_tree: {
         [MARKS.EOF]: {
-            _state: MATCH_STATUS.END,
-            _error: "Unexpected token",
-            _end(tokenizer: Tokenizer) {
+            //_state: MATCH_STATUS.END,
+            [MARKS.ERROR]: "Unexpected token",
+            [MARKS.END](tokenizer: Tokenizer) {
                 tokenizer.curly_stack.shift();
                 return true;
             }
         },
-        "\\0": { _str: "\0" },
+        "\\0": { [MARKS.STRING]: "\0" },
         "\\1": not_allow_octal_escape,
         "\\2": not_allow_octal_escape,
         "\\3": not_allow_octal_escape,
@@ -136,60 +136,65 @@ let template_base = {
         "\\6": not_allow_octal_escape,
         "\\7": not_allow_octal_escape,
         "`": {
-            _state: MATCH_STATUS.END,
-            _end(tokenizer: Tokenizer) {
+            [MARKS.END](tokenizer: Tokenizer) {
                 tokenizer.curly_stack.shift();
                 return true;
             }
         },
         "$": {
             "{": {
-                _state: MATCH_STATUS.END
+                [MARKS.END]: true
             }
         },
-        ...strbase_match_tree
+        ...strbase_scan_tree
     },
-    scanner: escape_scan
+    scanner: _Scanner(true)
 }
 const PUNCTUATORS: Array<any> = [
     {
         key: `"`, type: "String",
-        match_tree: {
+        scan_tree: {
             '"': {
-                _state: MATCH_STATUS.END
+                [MARKS.END]: true
             },
             "\n": {
-                _state: MATCH_STATUS.ERROR
+                //_state: MATCH_STATUS.ERROR
+                [MARKS.ERROR]: "Invalid or unexpected token"
             },
-            ...strbase_match_tree,
+            ...strbase_scan_tree,
             ...octal_escape_tree
         },
-        escape_scan,
+        escape_scan: _Scanner(true),
+        octal: false,
         scanner(tokenizer: Tokenizer, start: number) {
-            return this.escape_scan(tokenizer, start, {});
+            this.octal = false;
+            return this.escape_scan(tokenizer, start);
         }
     },
     {
         key: `'`, type: "String",
-        match_tree: {
+        scan_tree: {
             "'": {
-                _state: MATCH_STATUS.END
+                [MARKS.END]: true
             },
             "\n": {
-                _state: MATCH_STATUS.ERROR
+                //_state: MATCH_STATUS.ERROR
+                [MARKS.ERROR]: "Invalid or unexpected token"
             },
-            ...strbase_match_tree,
+            ...strbase_scan_tree,
             ...octal_escape_tree
         },
-        escape_scan,
+        escape_scan: _Scanner(true),
+        octal: false,
         scanner(tokenizer: Tokenizer, start: number) {
-            return this.escape_scan(tokenizer, start, {});
+            this.octal = false;
+            return this.escape_scan(tokenizer, start);
         }
     },
     {
         key: "`",
         ...template_base,
-        escape_scan,
+        escape_scan: _Scanner(true),
         scanner(tokenizer: Tokenizer, start: number) {
             tokenizer.curly_stack.unshift("`");
             return this.escape_scan(tokenizer, start);
@@ -204,38 +209,31 @@ const PUNCTUATORS: Array<any> = [
     },
     {
         key: '/*', bound: '*/', type: "Comments",
-        match_tree: {
+        scan_tree: {
             "*": {
                 "/": {
-                    _state: MATCH_STATUS.END
-                }
-            },
-            "\\*": {
-                "/": {
-                    _state: MATCH_STATUS.END
+                    //_state: MATCH_STATUS.END
+                    [MARKS.END]: true
                 }
             },
             [MARKS.EOF]: {
-                _state: MATCH_STATUS.END,
-                _error: "Unexpected token"
+                [MARKS.END]: true,
+                [MARKS.ERROR]: "Unexpected token"
             }
         },
-        scanner: escape_scan
+        scanner: _Scanner(false)
     },
     {
         key: '//', bound: '\n', type: "Comments",
-        match_tree: {
+        scan_tree: {
             "\n": {
-                _state: MATCH_STATUS.END
-            },
-            "\\\n": {
-                _state: MATCH_STATUS.END
+                [MARKS.END]: true
             },
             [MARKS.EOF]: {
-                _state: MATCH_STATUS.END
+                [MARKS.END]: true
             }
         },
-        scanner: escape_scan
+        scanner: _Scanner(false)
     },
 
     //["(", ")"], ["[", "]"], ["{", "}"],
@@ -261,41 +259,39 @@ const PUNCTUATORS: Array<any> = [
 
 const REGEXP_DESCRIPTOR = {
     key: '/', type: "RegularExpression",
-    match_tree: {
+    scan_tree: {
         '/': {
-            _state: MATCH_STATUS.END,
-            _end(tokenizer: Tokenizer, scope: Record<string, any>) {
-                return !scope.class_marker;
+            [MARKS.END](tokenizer: Tokenizer, self: Record<string, any>) {
+                return !self.class_marker;
             }
         },
         '[': {
-            _state: MATCH_STATUS.ATTACH,
-            _attach(tokenizer: Tokenizer, scope: Record<string, any>) {
-                scope.class_marker = true;
+            [MARKS.ATTACH](tokenizer: Tokenizer, self: Record<string, any>) {
+                self.class_marker = true;
             }
         },
         ']': {
-            _state: MATCH_STATUS.ATTACH,
-            _attach(tokenizer: Tokenizer, scope: Record<string, any>) {
-                scope.class_marker = false;
+            [MARKS.ATTACH](tokenizer: Tokenizer, self: Record<string, any>) {
+                self.class_marker = false;
             }
         },
         '\n': {
-            _state: MATCH_STATUS.ERROR
+            [MARKS.ERROR]: "Invalid or unexpected token"
         },
         '\\\n': {
-            _state: MATCH_STATUS.ERROR
+            [MARKS.ERROR]: "Invalid or unexpected token"
         },
         [MARKS.EOF]: {
-            _state: MATCH_STATUS.END,
-            _error: "Invalid or unexpected token"
+            [MARKS.END]: true,
+            [MARKS.ERROR]: "Invalid or unexpected token"
         }
     },
     overload: true,
-    escape_scan,
+    escape_scan: _Scanner(true),
+    class_marker: false,
     scanner(tokenizer: Tokenizer, start: number) {
-        let scope: Record<string, any> = {};
-        let token = this.escape_scan(tokenizer, start, scope);
+        this.class_marker = false;
+        let token = this.escape_scan(tokenizer, start);
         if (token) {
             token.regex = {
                 pattern: token.value.slice(

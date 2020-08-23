@@ -7,7 +7,7 @@ export default class {
     public index: number;
     public end: number;
     public _volatility: any;
-    public _scope: any;
+    public _scopes: any;
     private testCodePoint(regexp: RegExp) {
         if (
             (this.input.charCodeAt(this.index) & 0xfc00) === 0xd800

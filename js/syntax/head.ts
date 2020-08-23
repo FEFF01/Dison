@@ -8,7 +8,7 @@ import {
     Node, Pipe, Connector,
     Matched, CONTEXT, Context, Token, SourceLocation,
     MATCHED,
-    MATCH_MARKS,
+    MARKS,
     /*PRECEDENCE_FEATURES,*/ PRECEDENCE, Precedence as PrecedenceInterface, MATCHED_RECORDS, Validate
 } from '../interfaces';
 
@@ -105,7 +105,7 @@ abstract class Operator {
                             parts[0],
                             parts.length > 1
                                 ? parts.slice(1)
-                                : [MATCH_MARKS.TYPE_ONLY]
+                                : [MARKS.TYPE_ONLY]
                         ]);
                 }
             }
@@ -154,18 +154,18 @@ abstract class Operator {
                 for (const value of values) {
                     let value_node = this.getNode(parent, value, root);
                     if (
-                        value_node[MATCH_MARKS.WALKER]
-                        && value_node[MATCH_MARKS.WALKER] !== walker
+                        value_node[MARKS.WALKER]
+                        && value_node[MARKS.WALKER] !== walker
                     ) {
                         console.warn(
                             "conflict:",
                             value_node,
-                            value_node[MATCH_MARKS.WALKER],
+                            value_node[MARKS.WALKER],
                             walker
                         );
                     }
                     if (walker) {
-                        value_node[MATCH_MARKS.WALKER] = walker;
+                        value_node[MARKS.WALKER] = walker;
                     }
                     result.push(
                         [
@@ -183,20 +183,20 @@ abstract class Operator {
     private getNode(parent: any, key: string | number, root?: any) {
         let child = parent[key];
         if (child) {
-            if (child[MATCH_MARKS.IDENTIFIER] !== OPERATOR_ID) {
+            if (child[MARKS.IDENTIFIER] !== OPERATOR_ID) {
                 parent[key] = child = { ...child };
-                child[MATCH_MARKS.IDENTIFIER] = OPERATOR_ID;
+                child[MARKS.IDENTIFIER] = OPERATOR_ID;
             }
             return child;
         }
 
         child = parent[key] = {
-            [MATCH_MARKS.IDENTIFIER]: OPERATOR_ID
+            [MARKS.IDENTIFIER]: OPERATOR_ID
         };
         if (root) {
-            child[MATCH_MARKS.DEEPTH] = root[MATCH_MARKS.DEEPTH] + 1;
-            root[MATCH_MARKS.TERMINAL] = false;
-            child[MATCH_MARKS.TERMINAL] = true;
+            child[MARKS.DEEPTH] = root[MARKS.DEEPTH] + 1;
+            root[MARKS.TERMINAL] = false;
+            child[MARKS.TERMINAL] = true;
             /*if (root[MATCH_MARKS.MATCH_END]) {
                 root[MATCH_MARKS.MATCH_END][MATCHED_RECORDS.precedence][PRECEDENCE.TERMINAL] = false;
             }*/
@@ -432,7 +432,7 @@ function createMatchTree(
     prevent_update = false
 ) {
     prevent_update || (OPERATOR_ID += 1);
-    root = root ? prevent_update ? root : { ...root } : { [MATCH_MARKS.DEEPTH]: -1 };
+    root = root ? prevent_update ? root : { ...root } : { [MARKS.DEEPTH]: -1 };
 
     if (data instanceof Array) {
         for (const item of data) {
@@ -496,15 +496,15 @@ function createMatchTree(
                     for (const [last_node, props] of nodes) {
                         let matched_record = Mark.MATCHED_RECORD.slice();
                         matched_record[MATCHED.props] = props;
-                        if (!overload && last_node[MATCH_MARKS.MATCH_END]) {
+                        if (!overload && last_node[MARKS.END]) {
                             console.warn(
                                 "conflict:",
                                 last_node,
-                                last_node[MATCH_MARKS.MATCH_END],
+                                last_node[MARKS.END],
                                 matched_record
                             );
                         }
-                        last_node[MATCH_MARKS.MATCH_END] = matched_record
+                        last_node[MARKS.END] = matched_record
                     }
                 }
 
@@ -691,7 +691,7 @@ const RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN = _Or(
     STATEMANT_LIST_ITEM_PATTERN
 );
 const TOPLEVEL_ITEM_PATTERN = _Or(
-    MATCH_MARKS.BOUNDARY,
+    MARKS.BOUNDARY,
     "SwitchCase",
     MODULE_ITEM_PATTERN,
     STATEMANT_LIST_ITEM_PATTERN

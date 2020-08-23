@@ -30,7 +30,8 @@ interface Expression extends Node {
 type Program = Expression;
 type MatchTree = Record<
     string,
-    Function | { [propName: string]: MatchTree }
+    any
+//(...args: any) => any | { [propName: string]: MatchTree }
 >;
 type SearchTree = MatchTree | Record<
     string,
@@ -105,13 +106,13 @@ interface Context extends Array<any> {
     store(...args: Array<CONTEXT | any>): number,
     restore(point: number): number,
 }
-
+/*
 const enum MATCH_STATUS {
     END = 1,
     ERROR = -1,
     NEXT = 2,
     ATTACH = 3
-}
+}*/
 
 interface Wrapper {
     (): void,
@@ -172,14 +173,23 @@ interface Precedence extends Array<any> {
 type Validate = (token: Token) => boolean;
 
 
-const enum MATCH_MARKS {
+const enum MARKS {
     BOUNDARY = "",
     DEEPTH = " DEEP",
     IDENTIFIER = " ID",
-    MATCH_END = " END",
+    END = " END",
     TYPE_ONLY = " TYPE",
     WALKER = " WAL",
-    TERMINAL = " TER"
+    TERMINAL = " TER",
+
+    EOF = "",
+    ESCAPE = "\\",
+
+    ERROR = " ERR",
+    NEXT = " NEXT",
+    ATTACH = " ATT",
+    STRING = " STR"
+
     /*
     FOLLOW = " FOLLOW",
     NOT = " NOT",
@@ -200,7 +210,7 @@ enum NUMERIC_KEYWORD_MAPPINGS {
 };
 export {
     NUMERIC_KEYWORD_MAPPINGS,
-    MATCH_MARKS,
+    MARKS,
     Validate,
     PRECEDENCE, Precedence,
     NodeProp,
@@ -215,5 +225,5 @@ export {
     MATCHED,
     Token, Context,
     CONTEXT, Expression,
-    Program, NUMERIC_TYPE, MATCH_STATUS, MatchTree, SearchTree,/* Tokenizer, Parser,*/ Node
+    Program, NUMERIC_TYPE, MatchTree, SearchTree,/* Tokenizer, Parser,*/ Node
 }

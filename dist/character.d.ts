@@ -2,8 +2,8 @@ export default class {
     input: string;
     index: number;
     end: number;
-    _bak: any;
-    _scope: any;
+    _volatility: any;
+    _scopes: any;
     private testCodePoint;
     testUnicodeEscape(regexp: RegExp): number;
     scanHex(length?: number): [number, number];

@@ -1,6 +1,6 @@
 import {
     Context, CONTEXT, Token, Node
-    ,MATCH_MARKS
+    ,MARKS
 } from '../interfaces';
 import {
     async_getter,
@@ -30,22 +30,22 @@ let ImportSpecifiers = {
         precedence: 0,
         collector: [
             {
-                success: _Or(MATCH_MARKS.BOUNDARY, "Success"),
+                success: _Or(MARKS.BOUNDARY, "Success"),
                 content: "ImportSpecifier",
             }
         ]
     },
     ImportSpecifier: {
         collector: {
-            _prev: _NonCapturing("Success", MATCH_MARKS.BOUNDARY),
+            _prev: _NonCapturing("Success", MARKS.BOUNDARY),
             imported: "Identifier",
             local: _Or(
                 _Series(
                     _NonCollecting("Identifier as"),
                     "Identifier",
-                    _NonCollecting("Punctuator ,", MATCH_MARKS.BOUNDARY)
+                    _NonCollecting("Punctuator ,", MARKS.BOUNDARY)
                 ),
-                _Or("Punctuator ,", MATCH_MARKS.BOUNDARY).pipe(
+                _Or("Punctuator ,", MARKS.BOUNDARY).pipe(
                     function (context: Context) {
                         let [collected] = context;
                         return collected.imported;
@@ -64,22 +64,22 @@ const EXPORT_SPECIFIERS_TREE = createMatchTree({
         precedence: 0,
         collector: [
             {
-                success: _Or(MATCH_MARKS.BOUNDARY, "Success"),
+                success: _Or(MARKS.BOUNDARY, "Success"),
                 content: "ExportSpecifier",
             }
         ]
     },
     ExportSpecifier: {
         collector: {
-            _prev: _NonCapturing("Success", MATCH_MARKS.BOUNDARY),
+            _prev: _NonCapturing("Success", MARKS.BOUNDARY),
             local: "Identifier",
             exported: _Or(
                 _Series(
                     _NonCollecting("Identifier as"),
                     "Identifier",
-                    _NonCollecting("Punctuator ,", MATCH_MARKS.BOUNDARY)
+                    _NonCollecting("Punctuator ,", MARKS.BOUNDARY)
                 ),
-                _Or("Punctuator ,", MATCH_MARKS.BOUNDARY).pipe(
+                _Or("Punctuator ,", MARKS.BOUNDARY).pipe(
                     function (context: Context) {
                         let [collected] = context;
                         return collected.local;

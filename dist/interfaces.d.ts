@@ -27,9 +27,7 @@ interface Expression extends Node {
     expressions?: Array<Expression>;
 }
 declare type Program = Expression;
-declare type MatchTree = Record<string, Function | {
-    [propName: string]: MatchTree;
-}>;
+declare type MatchTree = Record<string, any>;
 declare type SearchTree = MatchTree | Record<string, number | string | Array<string>>;
 declare const enum NUMERIC_TYPE {
     BINARY = 1,
@@ -95,12 +93,6 @@ interface Context extends Array<any> {
     store(...args: Array<CONTEXT | any>): number;
     restore(point: number): number;
 }
-declare const enum MATCH_STATUS {
-    END = 1,
-    ERROR = -1,
-    NEXT = 2,
-    ATTACH = 3
-}
 interface Wrapper {
     (): void;
     [propName: string]: any;
@@ -155,4 +147,28 @@ interface Precedence extends Array<any> {
     [PRECEDENCE.RIGHT_ASSOCIATIVE]: number | Number;
 }
 declare type Validate = (token: Token) => boolean;
-export { Validate, PRECEDENCE, Precedence, NodeProp, Mark, Cover, Pipe, Connector, Position, SourceLocation, MATCHED_RECORDS, MatchedRecords, Matched, MATCHED, Token, Context, CONTEXT, Expression, Program, NUMERIC_TYPE, MATCH_STATUS, MatchTree, SearchTree, /* Tokenizer, Parser,*/ Node };
+declare const enum MARKS {
+    BOUNDARY = "",
+    DEEPTH = " DEEP",
+    IDENTIFIER = " ID",
+    END = " END",
+    TYPE_ONLY = " TYPE",
+    WALKER = " WAL",
+    TERMINAL = " TER",
+    EOF = "",
+    ESCAPE = "\\",
+    ERROR = " ERR",
+    NEXT = " NEXT",
+    ATTACH = " ATT",
+    STRING = " STR"
+}
+declare enum NUMERIC_KEYWORD_MAPPINGS {
+    "." = 36,
+    "x" = 8,
+    "b" = 1,
+    "o" = 2,
+    "X" = 8,
+    "B" = 1,
+    "O" = 2
+}
+export { NUMERIC_KEYWORD_MAPPINGS, MARKS, Validate, PRECEDENCE, Precedence, NodeProp, Mark, Cover, Pipe, Connector, Position, SourceLocation, MATCHED_RECORDS, MatchedRecords, Matched, MATCHED, Token, Context, CONTEXT, Expression, Program, NUMERIC_TYPE, MatchTree, SearchTree, /* Tokenizer, Parser,*/ Node };

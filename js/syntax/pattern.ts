@@ -1,6 +1,6 @@
 
 import {
-    Node, Token, Context, CONTEXT, MATCH_MARKS, MatchTree
+    Node, Token, Context, CONTEXT, MARKS, MatchTree
 } from '../interfaces';
 import {
     async_getter,
@@ -58,7 +58,7 @@ const Patterns: Record<string, any> = async_getter.Patterns = {
                 _next: _NonCapturing(ASSIGNMENT_PUNCTUATORS_PATTERN),//+=
             },
             {
-                _prev: _NonCapturing("Punctuator  ...", MATCH_MARKS.BOUNDARY, "Success"),
+                _prev: _NonCapturing("Punctuator  ...", MARKS.BOUNDARY, "Success"),
                 elements: _Or("Punctuator []"),
                 is_binding: _Mark(true)
             }
@@ -95,7 +95,7 @@ const Patterns: Record<string, any> = async_getter.Patterns = {
             ],
             ["_prev", _Mark()],
             [
-                ["_prev", _NonCapturing("Punctuator ...", MATCH_MARKS.BOUNDARY, "Success")],
+                ["_prev", _NonCapturing("Punctuator ...", MARKS.BOUNDARY, "Success")],
                 ["_next", _Mark()],
             ]
         ]
@@ -106,7 +106,7 @@ const Patterns: Record<string, any> = async_getter.Patterns = {
         },
         precedence: 1.5,
         collector: {
-            _: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+            _: _NonCapturing(MARKS.BOUNDARY, "Success"),
             left: _Or(
                 "ArrayPattern", "ObjectPattern",
                 _Or("Identifier").pipe(
@@ -230,7 +230,7 @@ let PatternElements = {
         handler: join_content,
         collector: [
             {
-                success: _Or(MATCH_MARKS.BOUNDARY, "Success"),
+                success: _Or(MARKS.BOUNDARY, "Success"),
                 content: _Or(
                     _Or("Identifier").pipe(
                         function (context: Context, identifier: Token) {
@@ -243,14 +243,14 @@ let PatternElements = {
                     ),
                     _Or("ArrayPattern", "ObjectPattern", "AssignmentPattern")
                 ),
-                _next: _NonCollecting(_Or("Punctuator ,", MATCH_MARKS.BOUNDARY))
+                _next: _NonCollecting(_Or("Punctuator ,", MARKS.BOUNDARY))
             },
             [
                 ["content", "RestElement"],
-                ["_next", _NonCollecting(MATCH_MARKS.BOUNDARY)]
+                ["_next", _NonCollecting(MARKS.BOUNDARY)]
             ],
             {
-                success: _Or(MATCH_MARKS.BOUNDARY, "Success"),
+                success: _Or(MARKS.BOUNDARY, "Success"),
                 content: _Mark(null),
                 _next: _NonCollecting("Punctuator ,")
             }
@@ -264,7 +264,7 @@ const PatternProperties = {
         handler: join_content,
         //precedence: 0,
         collector: {
-            success: _Or(_NonCollecting(MATCH_MARKS.BOUNDARY), "Success"),
+            success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
             content: "Property",
         }
     },
@@ -272,7 +272,7 @@ const PatternProperties = {
         {
             collector: [
                 {
-                    _prev: _NonCapturing(MATCH_MARKS.BOUNDARY, "Success"),
+                    _prev: _NonCapturing(MARKS.BOUNDARY, "Success"),
                     key: _Or("Punctuator []").pipe(
                         function (context: Context, token: Token) {
                             context.wrap(CONTEXT.tokens, token.content);
@@ -308,7 +308,7 @@ const PatternProperties = {
                             }
                         )
                     ),
-                    _next: _NonCollecting(MATCH_MARKS.BOUNDARY, "Punctuator ,"),
+                    _next: _NonCollecting(MARKS.BOUNDARY, "Punctuator ,"),
                     computed: _Mark(true),
                     kind: _Mark("init"),
                     method: _Mark(false),
@@ -367,7 +367,7 @@ const PatternProperties = {
             precedence: new Number(3),
             collector: {
                 __: _Series(
-                    _Or(MATCH_MARKS.BOUNDARY, "Success"),
+                    _Or(MARKS.BOUNDARY, "Success"),
                     _Or(
                         "Punctuator []",
                         "Identifier",

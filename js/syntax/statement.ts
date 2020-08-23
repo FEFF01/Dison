@@ -1,6 +1,6 @@
 
 import {
-    Context, CONTEXT, Node, Token, MATCH_MARKS, MatchTree
+    Context, CONTEXT, Node, Token, MARKS, MatchTree
 } from '../interfaces';
 import {
     async_getter,
@@ -544,7 +544,7 @@ let ForIterator = {
                     init: _Or(
                         "VariableDeclaration",
                         _Series(
-                            _NonCollecting(MATCH_MARKS.BOUNDARY),
+                            _NonCollecting(MARKS.BOUNDARY),
                             _Or(EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, _Mark(null)),//EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS
                             _NonCollecting("Punctuator ;")
                         )
@@ -630,7 +630,7 @@ let ForIterator = {
             collector: [
                 {
                     _: _Series(//和 VariableDeclaration 不冲突的占位 
-                        MATCH_MARKS.BOUNDARY,
+                        MARKS.BOUNDARY,
                         _Or(
                             _Series(
                                 _Or("Keyword var const let"),
@@ -646,7 +646,7 @@ let ForIterator = {
                 },
                 {
                     type: _Mark("ForOfStatement"),
-                    _prev: _NonCollecting(MATCH_MARKS.BOUNDARY),
+                    _prev: _NonCollecting(MARKS.BOUNDARY),
                     left: _Series(
                         _Option(_Or("Identifier let", "Keyword var const let")),
                         _Or("Identifier", "Punctuator {} [] ()")

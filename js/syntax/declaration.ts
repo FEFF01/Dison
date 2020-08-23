@@ -1,7 +1,7 @@
 
 
 import {
-    Context, CONTEXT, SourceLocation, Node, Token, MATCH_MARKS, MatchTree
+    Context, CONTEXT, SourceLocation, Node, Token, MARKS, MatchTree
 } from '../interfaces';
 import {
     async_getter,
@@ -52,7 +52,7 @@ let VariableDeclarators = {
         precedence: [true, 0],
         collector: [
             {
-                success: _Or("Success", MATCH_MARKS.BOUNDARY),
+                success: _Or("Success", MARKS.BOUNDARY),
                 content: _Or(
                     _Pattern("Identifier").pipe(
                         function (context: Context, identifier: Node) {
