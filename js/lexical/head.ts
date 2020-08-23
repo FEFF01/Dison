@@ -171,7 +171,7 @@ function _Scanner(
             );
         }
         function _finally(node: Record<string, any>, end_index: number) {
-            node[MARKS.ERROR] && (error = node._error);
+            node[MARKS.ERROR] && (error = node[MARKS.ERROR]);
             let part: string = node[MARKS.ATTACH] ? node[MARKS.ATTACH](tokenizer, self) : node[MARKS.STRING];
             if (part !== undefined) {
                 str = str.slice(0, end_index) + part;
