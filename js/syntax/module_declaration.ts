@@ -1,6 +1,6 @@
 import {
     Context, CONTEXT, Token, Node
-    ,MARKS
+    , MARKS
 } from '../interfaces';
 import {
     async_getter,
@@ -9,8 +9,8 @@ import {
     _Identifier,
     _Pattern,
     _Option, _Or, _Series, _NonCollecting, _Mark, TYPE_ALIAS,
-    validateLineTerminator, NODES, _NonCapturing, join_content, createMatchTree,
-    
+    validateLineTerminator, NODES, _NonCapturing, _SuccessCollector, createMatchTree,
+
     extract_success,
     parse_and_extract,
 } from './head'
@@ -25,7 +25,8 @@ const STRING_LITERAL_PATTERN = _Or("Literal").pipe(
 )
 
 let ImportSpecifiers = {
-    "Success": {
+    ..._SuccessCollector(_Pattern("ImportSpecifier")),
+    /*"Success": {
         handler: join_content,
         precedence: 0,
         collector: [
@@ -34,7 +35,7 @@ let ImportSpecifiers = {
                 content: "ImportSpecifier",
             }
         ]
-    },
+    },*/
     ImportSpecifier: {
         collector: {
             _prev: _NonCapturing("Success", MARKS.BOUNDARY),
@@ -59,16 +60,7 @@ let ImportSpecifiers = {
 
 const IMPORT_SPECIFIERS_TREE = createMatchTree(ImportSpecifiers);
 const EXPORT_SPECIFIERS_TREE = createMatchTree({
-    "Success": {
-        handler: join_content,
-        precedence: 0,
-        collector: [
-            {
-                success: _Or(MARKS.BOUNDARY, "Success"),
-                content: "ExportSpecifier",
-            }
-        ]
-    },
+    ..._SuccessCollector(_Pattern("ExportSpecifier")),
     ExportSpecifier: {
         collector: {
             _prev: _NonCapturing("Success", MARKS.BOUNDARY),

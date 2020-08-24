@@ -8,10 +8,11 @@ import {
     createMatchTree,
     _Option, _Or, _Series, _NonCollecting, _NonCapturing, _Mark,
     TYPE_ALIAS, _Context, _Loop, NODES,
-    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, join_content, TOPLEVEL_ITEM_PATTERN,
+    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, _SuccessCollector, join_content, TOPLEVEL_ITEM_PATTERN,
     extract_success,
     parse_and_extract,
     get_inner_group,
+    _Pattern,
 } from './head'
 
 //import { UNIT_EXPRESSION_TREE } from './expression';
@@ -260,14 +261,7 @@ let PatternElements = {
 
 
 const PatternProperties = {
-    Success: {
-        handler: join_content,
-        //precedence: 0,
-        collector: {
-            success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
-            content: "Property",
-        }
-    },
+    ..._SuccessCollector(_Pattern("Property")),
     Property: [
         {
             collector: [

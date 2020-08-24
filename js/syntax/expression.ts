@@ -15,7 +15,7 @@ import {
     createMatchTree,
     _Option, _Or, _Series, _NonCollecting, _NonCapturing, _Mark,
     TYPE_ALIAS, _Context, _Loop, NODES, validateIdentifier, validateAssignment,
-    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, join_content,
+    validateBinding, validateLineTerminator, ASSIGNMENT_PUNCTUATORS_PATTERN, _SuccessCollector, join_content,
 
     IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
     EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
@@ -839,16 +839,7 @@ const PROPERTY_NAME_PATTERN = _Or(COMPUTED_PROPERTY_NAME_PATTERN, LITERAL_PROPER
 
 
 const MethodDefinitions = {
-    "Success": {
-        handler: join_content,
-        precedence: 0,
-        collector: [
-            {
-                success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
-                content: "MethodDefinition",
-            }
-        ]
-    },
+    ..._SuccessCollector(_Pattern("MethodDefinition")),
     "": {
         validator(context: Context) {
             context[CONTEXT.start] = context[CONTEXT.end] = context[CONTEXT.right];
@@ -1033,23 +1024,14 @@ const Properties = {
 }
 
 const ObjectProperties = {
-    "Success": {
-        handler: join_content,
-        precedence: 0,
-        collector: [
-            {
-                success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
-                content: _Or(
-                    "Property",
-                    _Or("ObjectProperty").pipe(
-                        function (context: Context, token: Token) {
-                            token.type = "Property";
-                        }
-                    )
-                ),
+    ..._SuccessCollector(_Or(
+        "Property",
+        _Or("ObjectProperty").pipe(
+            function (context: Context, token: Token) {
+                token.type = "Property";
             }
-        ]
-    },
+        )
+    )),
     "Property": {
         collector: [
             {
@@ -1075,7 +1057,7 @@ const ObjectProperties = {
         ]
     }
 }
-
+/*
 let PRIMARY_EXPRESSION_TREE = createMatchTree(
     PrimaryExpressions
 )
@@ -1085,8 +1067,12 @@ let METHOD_DEFINITIONS_TREE = createMatchTree(
 let PROPERTIES_TREE = createMatchTree(
     Properties,
     PRIMARY_EXPRESSION_TREE
-);
-let UNIT_EXPRESSION_TREE: MatchTree,
+);*/
+
+let PRIMARY_EXPRESSION_TREE: MatchTree,
+    METHOD_DEFINITIONS_TREE: MatchTree,
+    PROPERTIES_TREE: MatchTree,
+    UNIT_EXPRESSION_TREE: MatchTree,
     ARRAY_ELEMENTS_TREE: MatchTree,
     OBJECT_PROPERTIES_TREE: MatchTree,
     PARAMS_TREE: MatchTree,
@@ -1098,6 +1084,17 @@ let UNIT_EXPRESSION_TREE: MatchTree,
 async_getter.get(
     "Patterns",
     function (Patterns: Record<string, any>) {
+        PRIMARY_EXPRESSION_TREE = createMatchTree(
+            PrimaryExpressions
+        )
+        METHOD_DEFINITIONS_TREE = createMatchTree(
+            MethodDefinitions, PRIMARY_EXPRESSION_TREE
+        );
+        PROPERTIES_TREE = createMatchTree(
+            Properties,
+            PRIMARY_EXPRESSION_TREE
+        );
+        
         UNIT_EXPRESSION_TREE = createMatchTree(
             [Expressions, Patterns],
             undefined,

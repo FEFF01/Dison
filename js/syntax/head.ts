@@ -661,6 +661,22 @@ function validateLineTerminator(context: Context) {
     return collected;
 }
 
+function _SuccessCollector(pattern: string | Operator) {
+    return {
+        Success: {
+            handler:join_content,
+            precedence: 0,
+            collector: [
+                {
+                    success: _Or(_NonCollecting(MARKS.BOUNDARY), "Success"),
+                    content: pattern,
+                }
+            ]
+        }
+    }
+
+}
+
 let join_content = function ([collected]: Context) {
     let { success, content } = collected;
     if (success) {
@@ -884,6 +900,7 @@ export {
     STATEMANT_LIST_ITEM_PATTERN,
     RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN,
     TOPLEVEL_ITEM_PATTERN,
+    _SuccessCollector,
     join_content,
     IDENTIFIER_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
     EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,

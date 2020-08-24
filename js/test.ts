@@ -1,6 +1,4 @@
-/*
-import Tokenizer from "./tokenizer"
-import Parser from "./parser"*/
+
 import Dison, { Tokenizer } from './index';
 
 let esprima = require("./test/esprima.js")
