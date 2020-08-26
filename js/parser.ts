@@ -48,7 +48,6 @@ export default class extends Tokenizer {
     }
     //token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer) => Token> = token_hooks;
     err(...args: any) {
-        //debugger;
         this.error_logs.push.apply(this.error_logs, args);
     }
     constructor() {

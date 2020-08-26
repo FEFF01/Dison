@@ -70,7 +70,7 @@ let octal_escape_tree = {
 }
 
 let strbase_scan_tree = {
-    "\\\n": { [MARKS.STRING]: "" },
+    [MARKS.ESCAPE + "\n"]: { [MARKS.STRING]: "" },
     "\\n": { [MARKS.STRING]: "\n" },
     "\\r": { [MARKS.STRING]: "\r" },
     "\\t": { [MARKS.STRING]: "\t" },
