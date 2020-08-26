@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AST explorer</title>
+    <meta charset="UTF-8">
+    <meta name="description" content="An online AST explorer.">
+    
+  <link rel="shortcut icon" href="favicon.png"></head>
+  <body>
+    <div id="page">
+      <div id="container"></div>
+      <div id="contribution">
+        Built with
+        <a href="https://reactjs.org/">React</a>,
+        <a href="https://babeljs.io/">Babel</a>,
+        <a href="https://fontawesome.com/">Font Awesome</a>,
+        <a href="https://codemirror.net/">CodeMirror</a>,
+        <a href="https://expressjs.com/">Express</a>,
+        and
+        <a href="https://webpack.js.org/">webpack</a>
+        |
+        <a href="https://github.com/fkling/astexplorer">GitHub</a>
+        |
+        <span>@@COMMIT@@</span>
+      </div>
+    </div>
+    <!-- Google Analytics -->
+    <script>
+    window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+    var ID = location.hostname === 'astexplorer.net' ?
+      'UA-81889051-1' :
+      'UA-81889051-2';
+    ga('create', ID, 'auto');
+    ga('send', 'pageview');
+    </script>
+    <script async src='https://www.google-analytics.com/analytics.js'></script>
+    <!-- End Google Analytics -->
+  <script type="text/javascript">/******/ (function(modules) { // webpackBootstrap
+/******/ 	// install a JSONP callback for chunk loading
+/******/ 	function webpackJsonpCallback(data) {
+/******/ 		var chunkIds = data[0];
+/******/ 		var moreModules = data[1];
+/******/ 		var executeModules = data[2];
+/******/
+/******/ 		// add "moreModules" to the modules object,
+/******/ 		// then flag all "chunkIds" as loaded and fire callback
+/******/ 		var moduleId, chunkId, i = 0, resolves = [];
+/******/ 		for(;i < chunkIds.length; i++) {
+/******/ 			chunkId = chunkIds[i];
+/******/ 			if(Object.prototype.hasOwnProperty.call(installedChunks, chunkId) && installedChunks[chunkId]) {
+/******/ 				resolves.push(installedChunks[chunkId][0]);
+/******/ 			}
+/******/ 			installedChunks[chunkId] = 0;
+/******/ 		}
+/******/ 		for(moduleId in moreModules) {
+/******/ 			if(Object.prototype.hasOwnProperty.call(moreModules, moduleId)) {
+/******/ 				modules[moduleId] = moreModules[moduleId];
+/******/ 			}
+/******/ 		}
+/******/ 		if(parentJsonpFunction) parentJsonpFunction(data);
+/******/
+/******/ 		while(resolves.length) {
+/******/ 			resolves.shift()();
+/******/ 		}
+/******/
+/******/ 		// add entry modules from loaded chunk to deferred list
+/******/ 		deferredModules.push.apply(deferredModules, executeModules || []);
+/******/
+/******/ 		// run deferred modules when all chunks ready
+/******/ 		return checkDeferredModules();
+/******/ 	};
+/******/ 	function checkDeferredModules() {
+/******/ 		var result;
+/******/ 		for(var i = 0; i < deferredModules.length; i++) {
+/******/ 			var deferredModule = deferredModules[i];
+/******/ 			var fulfilled = true;
+/******/ 			for(var j = 1; j < deferredModule.length; j++) {
+/******/ 				var depId = deferredModule[j];
+/******/ 				if(installedChunks[depId] !== 0) fulfilled = false;
+/******/ 			}
+/******/ 			if(fulfilled) {
+/******/ 				deferredModules.splice(i--, 1);
+/******/ 				result = __webpack_require__(__webpack_require__.s = deferredModule[0]);
+/******/ 			}
+/******/ 		}
+/******/
+/******/ 		return result;
+/******/ 	}
+/******/
+/******/ 	// The module cache
+/******/ 	var installedModules = {};
+/******/
+/******/ 	// object to store loaded and loading chunks
+/******/ 	// undefined = chunk not loaded, null = chunk preloaded/prefetched
+/******/ 	// Promise = chunk loading, 0 = chunk loaded
+/******/ 	var installedChunks = {
+/******/ 		"runtime": 0
+/******/ 	};
+/******/
+/******/ 	var deferredModules = [];
+/******/
+/******/ 	// script path function
+/******/ 	function jsonpScriptSrc(chunkId) {
+/******/ 		return __webpack_require__.p + "" + ({}[chunkId]||chunkId) + ".js"
+/******/ 	}
+/******/
+/******/ 	// object to store loaded and loading wasm modules
+/******/ 	var installedWasmModules = {};
+/******/
+/******/ 	function promiseResolve() { return Promise.resolve(); }
+/******/
+/******/ 	var wasmImportObjects = {
+/******/ 		"./node_modules/astexplorer-syn/astexplorer_syn_bg.wasm": function() {
+/******/ 			return {
+/******/ 				"./astexplorer_syn": {
+/******/ 					"__wbg_new_b8cfb43333e490e7": function() {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_new_b8cfb43333e490e7"]();
+/******/ 					},
+/******/ 					"__wbg_push_b05346de4945e83b": function(p0i32,p1i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_push_b05346de4945e83b"](p0i32,p1i32);
+/******/ 					},
+/******/ 					"__wbindgen_rethrow": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbindgen_rethrow"](p0i32);
+/******/ 					},
+/******/ 					"__wbg_seti_75dc091ba1346c1e": function(p0i32,p1i32,p2i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_seti_75dc091ba1346c1e"](p0i32,p1i32,p2i32);
+/******/ 					},
+/******/ 					"__wbindgen_string_new": function(p0i32,p1i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbindgen_string_new"](p0i32,p1i32);
+/******/ 					},
+/******/ 					"__wbg_new_fe29aa9c4bb780b3": function(p0i32,p1i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_new_fe29aa9c4bb780b3"](p0i32,p1i32);
+/******/ 					},
+/******/ 					"__wbg_setlinenumber_7365268832bb36b8": function(p0i32,p1i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_setlinenumber_7365268832bb36b8"](p0i32,p1i32);
+/******/ 					},
+/******/ 					"__wbindgen_number_new": function(p0f64) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbindgen_number_new"](p0f64);
+/******/ 					},
+/******/ 					"__wbg_new_b75265e6234ac55b": function() {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_new_b75265e6234ac55b"]();
+/******/ 					},
+/******/ 					"__wbg_set_7b705ff12be52315": function(p0i32,p1i32,p2i32,p3i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-syn/astexplorer_syn.js"].exports["__wbg_set_7b705ff12be52315"](p0i32,p1i32,p2i32,p3i32);
+/******/ 					}
+/******/ 				}
+/******/ 			};
+/******/ 		},
+/******/ 		"./node_modules/astexplorer-go/parser.wasm": function() {
+/******/ 			return {
+/******/ 				"go": {
+/******/ 					"debug": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["debug"](p0i32);
+/******/ 					},
+/******/ 					"runtime.wasmExit": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.wasmExit"](p0i32);
+/******/ 					},
+/******/ 					"runtime.wasmWrite": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.wasmWrite"](p0i32);
+/******/ 					},
+/******/ 					"runtime.nanotime": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.nanotime"](p0i32);
+/******/ 					},
+/******/ 					"runtime.walltime": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.walltime"](p0i32);
+/******/ 					},
+/******/ 					"runtime.scheduleTimeoutEvent": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.scheduleTimeoutEvent"](p0i32);
+/******/ 					},
+/******/ 					"runtime.clearTimeoutEvent": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.clearTimeoutEvent"](p0i32);
+/******/ 					},
+/******/ 					"runtime.getRandomData": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["runtime.getRandomData"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.stringVal": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.stringVal"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueGet": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueGet"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueSet": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueSet"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueIndex": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueIndex"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueSetIndex": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueSetIndex"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueCall": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueCall"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueNew": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueNew"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueLength": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueLength"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valuePrepareString": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valuePrepareString"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.valueLoadString": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.valueLoadString"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.copyBytesToGo": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.copyBytesToGo"](p0i32);
+/******/ 					},
+/******/ 					"syscall/js.copyBytesToJS": function(p0i32) {
+/******/ 						return installedModules["./node_modules/astexplorer-go/go.js"].exports["syscall/js.copyBytesToJS"](p0i32);
+/******/ 					}
+/******/ 				}
+/******/ 			};
+/******/ 		},
+/******/ 	};
+/******/
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/
+/******/ 		// Check if module is in cache
+/******/ 		if(installedModules[moduleId]) {
+/******/ 			return installedModules[moduleId].exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = installedModules[moduleId] = {
+/******/ 			i: moduleId,
+/******/ 			l: false,
+/******/ 			exports: {}
+/******/ 		};
+/******/
+/******/ 		// Execute the module function
+/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/
+/******/ 		// Flag the module as loaded
+/******/ 		module.l = true;
+/******/
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/
+/******/ 	// This file contains only the entry chunk.
+/******/ 	// The chunk loading function for additional chunks
+/******/ 	__webpack_require__.e = function requireEnsure(chunkId) {
+/******/ 		var promises = [];
+/******/
+/******/
+/******/ 		// JSONP chunk loading for javascript
+/******/
+/******/ 		var installedChunkData = installedChunks[chunkId];
+/******/ 		if(installedChunkData !== 0) { // 0 means "already installed".
+/******/
+/******/ 			// a Promise means "currently loading".
+/******/ 			if(installedChunkData) {
+/******/ 				promises.push(installedChunkData[2]);
+/******/ 			} else {
+/******/ 				// setup Promise in chunk cache
+/******/ 				var promise = new Promise(function(resolve, reject) {
+/******/ 					installedChunkData = installedChunks[chunkId] = [resolve, reject];
+/******/ 				});
+/******/ 				promises.push(installedChunkData[2] = promise);
+/******/
+/******/ 				// start chunk loading
+/******/ 				var script = document.createElement('script');
+/******/ 				var onScriptComplete;
+/******/
+/******/ 				script.charset = 'utf-8';
+/******/ 				script.timeout = 120;
+/******/ 				if (__webpack_require__.nc) {
+/******/ 					script.setAttribute("nonce", __webpack_require__.nc);
+/******/ 				}
+/******/ 				script.src = jsonpScriptSrc(chunkId);
+/******/
+/******/ 				// create error before stack unwound to get useful stacktrace later
+/******/ 				var error = new Error();
+/******/ 				onScriptComplete = function (event) {
+/******/ 					// avoid mem leaks in IE.
+/******/ 					script.onerror = script.onload = null;
+/******/ 					clearTimeout(timeout);
+/******/ 					var chunk = installedChunks[chunkId];
+/******/ 					if(chunk !== 0) {
+/******/ 						if(chunk) {
+/******/ 							var errorType = event && (event.type === 'load' ? 'missing' : event.type);
+/******/ 							var realSrc = event && event.target && event.target.src;
+/******/ 							error.message = 'Loading chunk ' + chunkId + ' failed.\n(' + errorType + ': ' + realSrc + ')';
+/******/ 							error.name = 'ChunkLoadError';
+/******/ 							error.type = errorType;
+/******/ 							error.request = realSrc;
+/******/ 							chunk[1](error);
+/******/ 						}
+/******/ 						installedChunks[chunkId] = undefined;
+/******/ 					}
+/******/ 				};
+/******/ 				var timeout = setTimeout(function(){
+/******/ 					onScriptComplete({ type: 'timeout', target: script });
+/******/ 				}, 120000);
+/******/ 				script.onerror = script.onload = onScriptComplete;
+/******/ 				document.head.appendChild(script);
+/******/ 			}
+/******/ 		}
+/******/
+/******/ 		// Fetch + compile chunk loading for webassembly
+/******/
+/******/ 		var wasmModules = {"65":["./node_modules/astexplorer-go/parser.wasm"],"70":["./node_modules/astexplorer-syn/astexplorer_syn_bg.wasm"]}[chunkId] || [];
+/******/
+/******/ 		wasmModules.forEach(function(wasmModuleId) {
+/******/ 			var installedWasmModuleData = installedWasmModules[wasmModuleId];
+/******/
+/******/ 			// a Promise means "currently loading" or "already loaded".
+/******/ 			if(installedWasmModuleData)
+/******/ 				promises.push(installedWasmModuleData);
+/******/ 			else {
+/******/ 				var importObject = wasmImportObjects[wasmModuleId]();
+/******/ 				var req = fetch(__webpack_require__.p + "" + {"./node_modules/astexplorer-syn/astexplorer_syn_bg.wasm":"220922f6210b509cc421","./node_modules/astexplorer-go/parser.wasm":"12fb15467b4d1a419b46"}[wasmModuleId] + ".module.wasm");
+/******/ 				var promise;
+/******/ 				if(importObject instanceof Promise && typeof WebAssembly.compileStreaming === 'function') {
+/******/ 					promise = Promise.all([WebAssembly.compileStreaming(req), importObject]).then(function(items) {
+/******/ 						return WebAssembly.instantiate(items[0], items[1]);
+/******/ 					});
+/******/ 				} else if(typeof WebAssembly.instantiateStreaming === 'function') {
+/******/ 					promise = WebAssembly.instantiateStreaming(req, importObject);
+/******/ 				} else {
+/******/ 					var bytesPromise = req.then(function(x) { return x.arrayBuffer(); });
+/******/ 					promise = bytesPromise.then(function(bytes) {
+/******/ 						return WebAssembly.instantiate(bytes, importObject);
+/******/ 					});
+/******/ 				}
+/******/ 				promises.push(installedWasmModules[wasmModuleId] = promise.then(function(res) {
+/******/ 					return __webpack_require__.w[wasmModuleId] = (res.instance || res).exports;
+/******/ 				}));
+/******/ 			}
+/******/ 		});
+/******/ 		return Promise.all(promises);
+/******/ 	};
+/******/
+/******/ 	// expose the modules object (__webpack_modules__)
+/******/ 	__webpack_require__.m = modules;
+/******/
+/******/ 	// expose the module cache
+/******/ 	__webpack_require__.c = installedModules;
+/******/
+/******/ 	// define getter function for harmony exports
+/******/ 	__webpack_require__.d = function(exports, name, getter) {
+/******/ 		if(!__webpack_require__.o(exports, name)) {
+/******/ 			Object.defineProperty(exports, name, { enumerable: true, get: getter });
+/******/ 		}
+/******/ 	};
+/******/
+/******/ 	// define __esModule on exports
+/******/ 	__webpack_require__.r = function(exports) {
+/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 		}
+/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 	};
+/******/
+/******/ 	// create a fake namespace object
+/******/ 	// mode & 1: value is a module id, require it
+/******/ 	// mode & 2: merge all properties of value into the ns
+/******/ 	// mode & 4: return value when already ns object
+/******/ 	// mode & 8|1: behave like require
+/******/ 	__webpack_require__.t = function(value, mode) {
+/******/ 		if(mode & 1) value = __webpack_require__(value);
+/******/ 		if(mode & 8) return value;
+/******/ 		if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
+/******/ 		var ns = Object.create(null);
+/******/ 		__webpack_require__.r(ns);
+/******/ 		Object.defineProperty(ns, 'default', { enumerable: true, value: value });
+/******/ 		if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
+/******/ 		return ns;
+/******/ 	};
+/******/
+/******/ 	// getDefaultExport function for compatibility with non-harmony modules
+/******/ 	__webpack_require__.n = function(module) {
+/******/ 		var getter = module && module.__esModule ?
+/******/ 			function getDefault() { return module['default']; } :
+/******/ 			function getModuleExports() { return module; };
+/******/ 		__webpack_require__.d(getter, 'a', getter);
+/******/ 		return getter;
+/******/ 	};
+/******/
+/******/ 	// Object.prototype.hasOwnProperty.call
+/******/ 	__webpack_require__.o = function(object, property) { return Object.prototype.hasOwnProperty.call(object, property); };
+/******/
+/******/ 	// __webpack_public_path__
+/******/ 	__webpack_require__.p = "";
+/******/
+/******/ 	// on error function for async loading
+/******/ 	__webpack_require__.oe = function(err) { console.error(err); throw err; };
+/******/
+/******/ 	// object with all WebAssembly.instance exports
+/******/ 	__webpack_require__.w = {};
+/******/
+/******/ 	var jsonpArray = window["webpackJsonp"] = window["webpackJsonp"] || [];
+/******/ 	var oldJsonpFunction = jsonpArray.push.bind(jsonpArray);
+/******/ 	jsonpArray.push = webpackJsonpCallback;
+/******/ 	jsonpArray = jsonpArray.slice();
+/******/ 	for(var i = 0; i < jsonpArray.length; i++) webpackJsonpCallback(jsonpArray[i]);
+/******/ 	var parentJsonpFunction = oldJsonpFunction;
+/******/
+/******/
+/******/ 	// run deferred modules from other chunks
+/******/ 	checkDeferredModules();
+/******/ })
+/************************************************************************/
+/******/ ([]);</script><script type="text/javascript" src="app.js"></script><script type="text/javascript" src="parsers~app.js"></script><script type="text/javascript" src="vendors~app.js"></script></body>
+</html>
