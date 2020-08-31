@@ -13,12 +13,13 @@ import {
     PRECEDENCE, Precedence, Validate, MARKS, MatchTree
 } from "./interfaces";
 
-import { _Context, TYPE_ALIAS, NODES, Mark, Cover, attachLocation } from "./syntax/head";
+import { _Context, TYPE_ALIAS, NODES, Mark, Cover, attachLocation, is_right_braces } from "./syntax/head";
 
 type Extreme = MatchedRecords;
 type Longest = MatchedRecords;
 
 const { Script, Module } = NODES;
+
 
 
 export default class extends Tokenizer {
@@ -36,7 +37,7 @@ export default class extends Tokenizer {
     isExpression: (token: Token) => boolean;
     isStatement: (token: Token) => boolean;
     isStatementListItem: (token: Token) => boolean;
-    get is_primary_expr_start() {
+    is_primary_expr_start() {
         if (this.tokens.length) {
             let last_node: any = this.tokens[this.tokens.length - 1];
             return this.isStatementListItem(last_node)
@@ -48,6 +49,7 @@ export default class extends Tokenizer {
     }
     //token_hooks: Record<string, (token: Token, tokenizer?: Tokenizer) => Token> = token_hooks;
     err(...args: any) {
+        debugger;
         this.error_logs.push.apply(this.error_logs, args);
     }
     constructor() {
@@ -119,6 +121,21 @@ export default class extends Tokenizer {
         context.wrap(CONTEXT.isExpression, true);
         let res = this.parseRangeAsNode(this.EXPRESSION_TREE, context, left, lexcal_terminator, this.isExpression);
         context.unwrap();
+        return res;
+    }
+    parseRangeAsBlock(
+        context: Context,
+        left: number,
+        lexcal_terminator: Validate = is_right_braces,
+    ) {
+        let res = this.parseRange(this.SYNTAX_TREE, context, left, lexcal_terminator);
+        res.type = "Block";
+        let tokens = res.content
+        if (tokens.length) {
+            if (!this.isStatementListItem(tokens[tokens.length - 1])) {
+                this.err(tokens.pop());
+            }
+        }
         return res;
     }
     private _parse(input: string, ...environments: Array<number | any>) {

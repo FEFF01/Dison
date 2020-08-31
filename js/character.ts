@@ -116,17 +116,4 @@ export default class {
             );
         /*return /^[\w$\u0080-\uffffff]$/.test(char);*/
     }
-    /*isFollowingAnExpression(token?: Token) {
-        return token ? [
-            'in', 'typeof', 'instanceof', 'new',
-            'return', 'case', 'delete', 'throw', 'void',
-            // assignment operators
-            '=', '+=', '-=', '*=', '**=', '/=', '%=', '<<=', '>>=', '>>>=',
-            '&=', '|=', '^=', ',',
-            // binary/unary operators
-            '+', '-', '*', '**', '/', '%', '++', '--', '<<', '>>', '>>>', '&',
-            '|', '^', '!', '~', '&&', '||', '?', ':', '===', '==', '>=',
-            '<=', '<', '>', '!=', '!=='
-        ].indexOf(token.value) >= 0 : false;
-    }*/
 }

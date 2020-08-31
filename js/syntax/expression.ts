@@ -107,9 +107,10 @@ const BODY_PATTERN = _Or(
             body_context[CONTEXT.allowYield] = generator;
             body_context[CONTEXT.allowAwait] = async;
 
-            let node = parser.parseRange(
+            let node = parser.parseRangeAsBlock(body_context, left);
+            /*parser.parseRange(
                 parser.SYNTAX_TREE, body_context, left, is_right_braces
-            );
+            )*/
             node.type = "Body";
             node.generator = generator;
             node.async = async;
@@ -1094,7 +1095,7 @@ async_getter.get(
             Properties,
             PRIMARY_EXPRESSION_TREE
         );
-        
+
         UNIT_EXPRESSION_TREE = createMatchTree(
             [Expressions, Patterns],
             undefined,

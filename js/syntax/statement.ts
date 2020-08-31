@@ -44,7 +44,8 @@ let BLOCK_STATEMENT_PATTERN = _Or(
     _Or("Punctuator {").walk(
         function (context: Context, left: number) {
             let parser = context[CONTEXT.parser];
-            parser.parseRange(parser.SYNTAX_TREE, context, left, is_right_braces).type = "Block";
+            parser.parseRangeAsBlock(context, left);
+            //parser.parseRange(parser.SYNTAX_TREE, context, left, is_right_braces).type = "Block";
         }
     )
 ).pipe(
@@ -90,7 +91,7 @@ const Statements: Record<string, any> = async_getter.Statements = {
         collector: [
             {
                 error: _Or("Punctuator", "Keyword"),
-                _next: _NonCapturing(RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN, "Punctuator }"),
+                _next: _NonCapturing(RIGHT_SIDE_TOPLEVEL_ITEM_PATTERN),/*, "Punctuator }"*/
             }
         ]
     },
@@ -192,7 +193,8 @@ const Statements: Record<string, any> = async_getter.Statements = {
                 body: _Punctuator("{").pipe(
                     function (context: Context, token: Token, left: number) {
                         let parser = context[CONTEXT.parser];
-                        return parser.parseRange(parser.SYNTAX_TREE, context, left, is_right_braces).content;
+                        return parser.parseRangeAsBlock(context, left).content;
+                        //return parser.parseRange(parser.SYNTAX_TREE, context, left, is_right_braces).content;
                     }
                 )
             }
@@ -230,50 +232,52 @@ const Statements: Record<string, any> = async_getter.Statements = {
             ]
         }
     ],
-    "ExpressionStatement": {
-        handler(context: Context) {
-            let [collected, parser, left] = context;
-            validateLineTerminator(context);
-            let begin = context[CONTEXT.begin];
-            if (
-                (
-                    !context[CONTEXT.tokens] ||
-                    context[CONTEXT.inFunctionBody] === begin
-                )
-                && (
-                    begin >= left ||
-                    context.getToken(left - 1).directive
-                )
-            ) {
-                let expression = collected.expression;
+    "ExpressionStatement": [
+        {
+            handler(context: Context) {
+                let [collected, parser, left] = context;
+                validateLineTerminator(context);
+                let begin = context[CONTEXT.begin];
                 if (
-                    expression
-                    && expression.type === "Literal"
-                    && typeof expression.value === "string"
-                    && expression.raw.length > 2
+                    (
+                        !context[CONTEXT.tokens] ||
+                        context[CONTEXT.inFunctionBody] === begin
+                    )
+                    && (
+                        begin >= left ||
+                        context.getToken(left - 1).directive
+                    )
                 ) {
-                    collected = new NODES.Directive(
-                        collected.type,
-                        expression,
-                        expression.raw.slice(1, -1),
-                        collected.range,
-                        collected.loc
-                    );
-                    if (collected.directive === "use strict") {
-                        context[CONTEXT.strict] = true;
+                    let expression = collected.expression;
+                    if (
+                        expression
+                        && expression.type === "Literal"
+                        && typeof expression.value === "string"
+                        && expression.raw.length > 2
+                    ) {
+                        collected = new NODES.Directive(
+                            collected.type,
+                            expression,
+                            expression.raw.slice(1, -1),
+                            collected.range,
+                            collected.loc
+                        );
+                        if (collected.directive === "use strict") {
+                            context[CONTEXT.strict] = true;
+                        }
                     }
                 }
-            }
-            return collected;
-        },
-        precedence: 0,
-        collector: [
-            {
-                expression: EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
-                _next: _Option("Punctuator ;")
-            }
-        ]
-    },
+                return collected;
+            },
+            precedence: 0,
+            collector: [
+                {
+                    expression: EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
+                    _next: _Option("Punctuator ;")
+                }
+            ]
+        }
+    ],
     "ForStatement": {
         validator: [
             function (context: Context) {

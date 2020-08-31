@@ -16,7 +16,7 @@ declare abstract class Operator {
     constructor(operands: Operands);
     pipe(pipe: Pipe): this;
     walk(walker: Connector, bind_env?: boolean): this;
-    get factors(): (Operator | Mark | [string | number, (string | number)[]])[];
+    get factors(): (Mark | Operator | [string | number, (string | number)[]])[];
     abstract attach(parents: IterationRecord, key: string | Cover, pipes?: Array<Pipe>): IterationRecord;
     protected map(parents: IterationRecord, factor: [string | number, Array<string | number>] | Operator | Mark, key: string | Cover, pipes?: Array<Pipe>): IterationRecord;
     private getNode;
