@@ -38,6 +38,13 @@ import Declaration from './declaration';
 const Grouping = NODES.Grouping;
 let { VariableDeclaration } = Declaration;
 
+let STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN = _Or(STATEMANT_LIST_ITEM_PATTERN).pipe(
+    function (context: Context, node: Node) {
+        if (node.type === "VariableDeclaration" && node.kind !== "var") {
+            context[CONTEXT.parser].err(node);
+        }
+    }
+)
 
 let BLOCK_STATEMENT_PATTERN = _Or(
     "Block",
@@ -213,7 +220,7 @@ const Statements: Record<string, any> = async_getter.Statements = {
                 keyword: _NonCollecting("Keyword do"),
             },
             [
-                ["body", STATEMANT_LIST_ITEM_PATTERN],
+                ["body", STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN],
                 ["test", _Series(
                     _NonCollecting("Keyword while"),
                     GROUPING_EXPRESSION
@@ -221,6 +228,13 @@ const Statements: Record<string, any> = async_getter.Statements = {
                 ["_next", _Option("Punctuator ;")]
             ]
         ]
+    },
+    "DebuggerStatement": {
+        handler: validateLineTerminator,
+        collector: {
+            _: _NonCollecting(_Keyword("debugger")),
+            _next: _Option("Punctuator ;")
+        }
     },
     "EmptyStatement": [
         {
@@ -317,7 +331,7 @@ const Statements: Record<string, any> = async_getter.Statements = {
                     )
                 )
             },
-            ["body", STATEMANT_LIST_ITEM_PATTERN]
+            ["body", STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN]
         ]
     },
     "ForInStatement": {//ForStatement
@@ -339,11 +353,11 @@ const Statements: Record<string, any> = async_getter.Statements = {
                 consequent: _Mark(null),
                 alternate: _Mark(null)
             },
-            ["consequent", STATEMANT_LIST_ITEM_PATTERN],
+            ["consequent", STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN],
             [
                 "alternate", _Series(
                     _NonCollecting("Keyword else"),
-                    _Option(STATEMANT_LIST_ITEM_PATTERN)
+                    _Option(STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN)
                 )
             ]
         ]
@@ -504,7 +518,7 @@ const Statements: Record<string, any> = async_getter.Statements = {
                 token: _NonCollecting("Keyword while"),
                 test: GROUPING_EXPRESSION
             },
-            ["body", STATEMANT_LIST_ITEM_PATTERN]
+            ["body", STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN]
         ]
     },
     "WithStatement": {
@@ -525,7 +539,7 @@ const Statements: Record<string, any> = async_getter.Statements = {
                 token: "Keyword with",
                 object: "Punctuator ()"
             },
-            ["body", STATEMANT_LIST_ITEM_PATTERN]
+            ["body", STATEMANT_LIST_ITEM_AND_VALIDATE_DECLARATION_PATTERN]
         ]
     }
 };
