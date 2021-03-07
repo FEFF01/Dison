@@ -135,7 +135,7 @@ export default class extends Character {
         }
         return token;
     }
-    is_primary_expr_start() {
+    isPrimaryExprStart() {
         if (this.tokens.length) {
             let last_node: any = this.tokens[this.tokens.length - 1];
             return last_node.type === this.TYPE_ENUMS.Keyword
@@ -145,7 +145,7 @@ export default class extends Character {
         }
     }
     nextPunctuator(): Token | void {
-        return this.match(!this.is_primary_expr_start() ? this.PUNCTUATORS_TREE : this.PRIMARY_EXPR_START_PUNCTUATORS_TREE);
+        return this.match(!this.isPrimaryExprStart() ? this.PUNCTUATORS_TREE : this.PRIMARY_EXPR_START_PUNCTUATORS_TREE);
     }
 
     nextNumeric(): Token | void {

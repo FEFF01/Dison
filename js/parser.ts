@@ -37,12 +37,22 @@ export default class extends Tokenizer {
     isExpression: (token: Token) => boolean;
     isStatement: (token: Token) => boolean;
     isStatementListItem: (token: Token) => boolean;
-    is_primary_expr_start() {
+    isPrimaryExprStart() {
         if (this.tokens.length) {
             let last_node: any = this.tokens[this.tokens.length - 1];
+
             return this.isStatementListItem(last_node)
                 || last_node.type === this.TYPE_ENUMS.Keyword
-                || last_node.type === this.TYPE_ENUMS.Punctuator && !(/^\{\}|\(\)|\[\]$/.test(last_node.value));
+                || last_node.type === this.TYPE_ENUMS.Punctuator
+                && !(
+                    /^\{\}|\[\]$/.test(last_node.value)
+                    || last_node.value === "()"
+                    && !/^if|while|for|with$/.test(
+                        this.tokens[this.tokens.length - 2]?.value
+                    )
+                )
+
+            //!(/^\{\}|\(\)|\[\]$/.test(last_node.value));
         } else {
             return true;
         }

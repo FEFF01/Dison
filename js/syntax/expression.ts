@@ -2,6 +2,7 @@ import {
     Node, Token, Context, CONTEXT, MATCHED, MatchTree, MARKS
 } from '../interfaces';
 import {
+    Operator,
     async_getter,
     token_hooks,
     _Punctuator,
@@ -68,7 +69,7 @@ const ARGUMENTS_PATTERN = _Or(
 );
 
 
-const PARAMS_PATTERN = _Or(
+const PARAMS_PATTERN: Operator = _Or(
     _Punctuator("(").walk(
         function (context: Context, left: number) {
             let parser = context[CONTEXT.parser];
@@ -96,7 +97,7 @@ const PARAMS_PATTERN = _Or(
         return params;
     }
 );
-const BODY_PATTERN = _Or(
+const BODY_PATTERN: Operator = _Or(
     _Punctuator("{").walk(
         function (context: Context, left: number) {
             let generator = !!this.generator, async = !!this.async;
@@ -122,7 +123,7 @@ const BODY_PATTERN = _Or(
         true
     ), "Body"
 );
-const FUNCTION_BODY_PATTERN = _Or(
+const FUNCTION_BODY_PATTERN: Operator = _Or(
     BODY_PATTERN
 ).pipe(
     function (context: Context, token: Token) {
@@ -410,7 +411,7 @@ const Expressions: Record<string, any> = async_getter.Expressions = {
                     CONTEXT.tokens, token.content
                 );
                 let grouping = new Grouping(
-                    parser.parseExpression(context)
+                    parser.parseExpression(context), token
                 );
                 context.restore(store);
                 context[CONTEXT.start] = context[CONTEXT.end] = left;
@@ -1132,14 +1133,16 @@ async_getter.get("Expressions", function (expressions: Record<string, any>) {
         }
     }
 });
-export default Expressions;
 export {
+    PARAMS_PATTERN,
+    FUNCTION_BODY_PATTERN,
     PrimaryExpressions,
     Expressions,
     parseArrayPattern,
     parseObjectPattern,
     parse_params
 };
+export default Expressions;
 function parse_params(context: Context, tokens: Array<Token>) {//
     if (tokens.length) {
         let parser = context[CONTEXT.parser];

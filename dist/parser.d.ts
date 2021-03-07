@@ -14,7 +14,7 @@ export default class extends Tokenizer {
     isExpression: (token: Token) => boolean;
     isStatement: (token: Token) => boolean;
     isStatementListItem: (token: Token) => boolean;
-    is_primary_expr_start(): boolean;
+    isPrimaryExprStart(): boolean;
     err(...args: any): void;
     constructor();
     parse(input: string): any;

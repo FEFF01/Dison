@@ -664,7 +664,7 @@ function validateLineTerminator(context: Context) {
 function _SuccessCollector(pattern: string | Operator) {
     return {
         Success: {
-            handler:join_content,
+            handler: join_content,
             precedence: 0,
             collector: [
                 {
@@ -724,10 +724,12 @@ function isAligned(context: Context, left: number, right: number) {
 }
 
 function attachLocation(source: Node, start: Node, end: Node = start) {
+    let start_loc = start.loc.start;
+    let end_loc = end.loc.end;
     source.range = [start.range[0], end.range[1]];
     source.loc = {
-        start: start.loc.start,
-        end: end.loc.end
+        start: { line: start_loc.line, column: start_loc.column },
+        end: { line: end_loc.line, column: end_loc.column }
     };
 }
 
@@ -877,7 +879,9 @@ function AsyncGetter() {
     return async_mapper;
 }
 let async_getter = AsyncGetter();
+
 export {
+    Operator,
     async_getter,
     token_hooks,
     parse_next_statement,
