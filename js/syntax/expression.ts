@@ -58,6 +58,7 @@ const ARGUMENTS_PATTERN = _Or(
     function (context: Context, token: Token, index: number) {
         let parser = context[CONTEXT.parser];
         let store = context.store(
+            CONTEXT.isExpression, true,
             CONTEXT.bindingElement, false,
             CONTEXT.spreadElement, true,
             CONTEXT.tokens, token.content
@@ -927,6 +928,40 @@ const Arguments = {
     }
 }
 
+function validateParamDeclarator(context: Context, token: Token) {
+    let parser = context[CONTEXT.parser];
+    validate(token);
+    function validate(id: Node) {
+        if (id instanceof Grouping) {
+            parser.err(id);
+            return;
+        }
+        switch (id.type) {
+            case "Identifier":
+                validateBinding(context, id);
+                break;
+            case "ObjectPattern":
+                for (let property of id.properties) {
+                    validate(property.value);
+                }
+                break;
+            case "ArrayPattern":
+                for (let element of id.elements) {
+                    element && validate(element);
+                }
+                break;
+            case "RestElement":
+                validate(id.argument);
+                break;
+            case "AssignmentPattern":
+                validate(id.left);
+                break;
+            default:
+                parser.err(id);
+                break;
+        }
+    }
+}
 const Params = {
     "Success": {
         handler(context: Context) {
@@ -949,9 +984,9 @@ const Params = {
                     }
                 )
             ],
-            ["content", _Or("ArrayPattern", "ObjectPattern")],
+            ["content", _Or("ArrayPattern", "ObjectPattern").pipe(validateParamDeclarator)],
             [
-                ["content", "RestElement"],
+                ["content", _Or("RestElement").pipe(validateParamDeclarator)],
                 ["_", _Or(_NonCollecting(MARKS.BOUNDARY), _NonCapturing("Punctuator )"))]
             ]
         ]

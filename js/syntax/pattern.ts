@@ -110,7 +110,8 @@ const Patterns: Record<string, any> = async_getter.Patterns = {
             _: _NonCapturing(MARKS.BOUNDARY, "Success"),
             left: _Or(
                 "ArrayPattern", "ObjectPattern",
-                _Or("Identifier").pipe(
+                "Identifier"
+                /*_Or("Identifier").pipe(
                     function (context: Context, identifier: Node) {
                         if (identifier instanceof Grouping) {
                             context[CONTEXT.parser].err(identifier);
@@ -118,7 +119,7 @@ const Patterns: Record<string, any> = async_getter.Patterns = {
                             validateBinding(context, identifier);
                         }
                     }
-                )
+                )*/
             ),
             __: _NonCollecting("Punctuator ="),
             right: "[Expression]"
@@ -191,11 +192,15 @@ const Patterns: Record<string, any> = async_getter.Patterns = {
             collector: {
                 type: _Mark("RestElement"),
                 token: _NonCollecting("Punctuator ..."),
-                argument: _Or(_Or("Identifier").pipe(
-                    function (context: Context, token: Token) {
-                        validateBinding(context, token)
-                    }
-                ), "ArrayPattern", "ObjectPattern")
+                argument: _Or(
+                    /*_Or("Identifier").pipe(
+                        function (context: Context, token: Token) {
+                            validateBinding(context, token)
+                        }
+                    )*/
+                    "Identifier", "MemberExpression"
+                    , "ArrayPattern", "ObjectPattern"
+                )
             }
         }
     ]
@@ -233,15 +238,16 @@ let PatternElements = {
             {
                 success: _Or(MARKS.BOUNDARY, "Success"),
                 content: _Or(
-                    _Or("Identifier").pipe(
+                    /*_Or("Identifier").pipe(
                         function (context: Context, identifier: Token) {
                             if (identifier instanceof Grouping) {
                                 context[CONTEXT.parser].err(identifier);
                             } else {
-                                validateBinding(context, identifier);
+                            validateBinding(context, identifier);
                             }
                         }
-                    ),
+                    ),*/
+                    "Identifier", "MemberExpression",
                     _Or("ArrayPattern", "ObjectPattern", "AssignmentPattern")
                 ),
                 _next: _NonCollecting(_Or("Punctuator ,", MARKS.BOUNDARY))
@@ -278,9 +284,11 @@ const PatternProperties = {
                     value: _Series(
                         _NonCollecting("Punctuator :"),
                         _Or(
-                            _Or("Identifier").pipe(function (context: Context, token: Token) {
+                            /*_Or("Identifier").pipe(function (context: Context, token: Token) {
                                 validateBinding(context, token);
                             }),
+                            _Or("MemberExpression"),*/
+                            "Identifier", "MemberExpression",
                             _Or("Punctuator []").pipe(parseArrayPattern),
                             _Or("Punctuator {}").pipe(parseObjectPattern),
                         ),
@@ -344,12 +352,13 @@ const PatternProperties = {
                     ],
                     [
                         "shorthand",
-                        _Mark(
+                        _Mark(true)
+                        /*_Mark(
                             function (context: Context) {
                                 validateBinding(context, context[CONTEXT.collected].key);
                                 return true;
                             }
-                        )
+                        )*/
                     ]
                 ]
             ]

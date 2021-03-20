@@ -20,22 +20,65 @@ import {
 let Grouping = NODES.Grouping;
 
 
+
 function get_variable_declarator(context: Context, id: Node, init: Node, range: [number, number], loc: SourceLocation): Node {
+
     let parser = context[CONTEXT.parser];
+    validate(id);
+    /*
     if (id instanceof Grouping) {
         parser.err(id);
-    } else if (context[CONTEXT.strict]) {
+    }if (context[CONTEXT.strict]) {
         init || validateBinding(context, id);
     } if (id.name === "let") {
         let kind = context.tokens[context[CONTEXT.begin] - 1];
         if (kind.value === "let" || kind.value === "const") {
             parser.err(id);
         }
-    }
+    }*/
     return {
         type: "VariableDeclarator",
         id, init, range, loc
     };
+
+    function validate(id: Node) {
+        if (id instanceof Grouping) {
+            parser.err(id);
+            return;
+        }
+        switch (id.type) {
+            case "Identifier":
+                if (context[CONTEXT.strict]) {
+                    validateBinding(context, id);
+                } else if (id.name === "let") {
+                    let kind = context.tokens[context[CONTEXT.begin] - 1];
+                    if (kind.value === "let" || kind.value === "const") {
+                        parser.err(id);
+                    }
+                }
+                break;
+            case "ObjectPattern":
+                for (let property of id.properties) {
+                    validate(property.value);
+                }
+                break;
+            case "ArrayPattern":
+                for (let element of id.elements) {
+                    element && validate(element);
+                }
+                break;
+            case "RestElement":
+                validate(id.argument);
+                break;
+            case "AssignmentPattern":
+                validate(id.left);
+                break;
+            default:
+                parser.err(id);
+                break;
+        }
+    }
+
 }
 
 let VariableDeclarators = {
