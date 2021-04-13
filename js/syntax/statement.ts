@@ -3,6 +3,7 @@ import {
     Context, CONTEXT, Node, Token, MARKS, MatchTree
 } from '../interfaces';
 import {
+    join_content,
     async_getter,
     _Punctuator,
     _Keyword,
@@ -27,13 +28,15 @@ import {
     attachLocation,
     get_inner_group,
     parse_next_statement,
+    reinterpretIdentifierAsKeyword
 } from './head'
 import {
+    PrimaryExpressions,
     parseArrayPattern,
     parseObjectPattern,
     parse_params
 } from './expression';
-import Declaration from './declaration';
+import Declaration, { get_variable_declarator } from './declaration';
 
 const Grouping = NODES.Grouping;
 let { VariableDeclaration } = Declaration;
@@ -296,7 +299,9 @@ const Statements: Record<string, any> = async_getter.Statements = {
         validator: [
             function (context: Context) {
                 context.wrap(CONTEXT.inIteration, true);
+                //context.wrap(CONTEXT.bindingElement, true);
                 let res = parse_next_statement(context);
+                //context.unwrap();
                 context.unwrap();
                 return res;
             },
@@ -325,6 +330,7 @@ const Statements: Record<string, any> = async_getter.Statements = {
                         function (context: Context, left: number) {
                             let parser = context[CONTEXT.parser];
                             context.wrap(CONTEXT.isExpression, true);
+
                             parser.parseRange(FOR_ITERATOR_TREE, context, left, is_right_parentheses, parser.isStatement)
                             context.unwrap();
                         }
@@ -551,22 +557,103 @@ async_getter.get("Statements", function (statements: Record<string, any>) {
         }
     }
 });
-export default Statements;
 
 let ForIterator = {
-    VariableDeclaration,
+    //VariableDeclaration,
+
+    "": {
+        handler(context: Context) {
+            return reinterpretIdentifierAsKeyword(context[CONTEXT.collected].token);
+        },
+        collector: {
+            _prev: MARKS.BOUNDARY,
+            token: "Identifier let"
+        }
+    },
+    VariableDeclaration: {
+        handler: [
+            function (context: Context) {
+                let [collected] = context;
+                let { kind, declarations } = collected;
+                let [id, init] = declarations;
+                collected.declarations = [get_variable_declarator(
+                    context,
+                    id.type === "Identifier"
+                        ? id
+                        : (id.value === "[]"
+                            ? parseArrayPattern(context, id)
+                            : parseObjectPattern(context, id)),
+                    init,
+                    [id.range[0], (init || id).range[1]],
+                    {
+                        start: id.loc.start,
+                        end: (init || id).loc.end
+                    }
+                )]
+
+                if (kind.type === "VariableDeclaration") {
+                    collected.declarations.unshift(...kind.declarations);
+                    collected.kind = kind.kind;
+                } else {
+                    collected.kind = kind.value;
+                }
+                return collected;
+            }
+        ],
+        collector: [
+            {
+                kind: _Or(
+                    _Series("VariableDeclaration", _NonCollecting("Punctuator ,")),
+                    _Series(
+                        _NonCollecting(MARKS.BOUNDARY),
+                        _Keyword("let", "var", "const")
+                    ),
+                ),
+                declarations: _Series(
+                    _Or(
+                        "Identifier",
+                        _Or("Punctuator [] {}")
+                    ),
+                    _Or(
+                        _Series(
+                            _NonCollecting("Punctuator ="),
+                            "[Expression]"
+                        ),
+                        _Mark(null)
+                    )
+                ),
+                _next: _NonCapturing(
+                    "Punctuator ; ,",
+                    _Identifier("of"),
+                    _Keyword("of"),
+                    _Keyword("in")
+                )
+
+            }
+
+        ]
+    },
     ForStatement: [
         {
             collector: [
                 {
-                    init: _Or(
-                        "VariableDeclaration",
+                    init:
                         _Series(
                             _NonCollecting(MARKS.BOUNDARY),
-                            _Or(EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, _Mark(null)),//EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS
+                            _Or(
+                                _Pattern("VariableDeclaration").pipe(
+                                    function (context: Context, node: Node) {
+                                        if (node.kind === "const") {
+                                            context[CONTEXT.parser].err(node);
+                                        }
+                                    }
+                                ),
+                                EXPRESSION_OR_THROW_STRICT_RESERVED_WORDS_PATTERN, _Mark(null)
+                            ),//EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS
                             _NonCollecting("Punctuator ;")
                         )
-                    ),
+                    //)
+                    ,
                     test: _Series(
                         _Or(EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN, _Mark(null)),
                         _NonCollecting("Punctuator ;")
@@ -580,96 +667,60 @@ let ForIterator = {
             ]
         },
         {
-            handler(context: Context) {
-                let [collected, parser] = context;
-                let { left } = collected;
-                let kind: Node, declarator: Node;
-                if (left instanceof Array) {
-                    [kind, declarator] = left;
-                } else {
-                    declarator = left;
-                }
-                if (declarator.value === "()" && declarator.type === "Punctuator") {
-                    let wrapper = declarator;
-                    declarator = get_inner_group(declarator);
-                    if (declarator.content.length > 0) {
-                        if (kind) {
-                            parser.err(declarator);
-                        } else if (declarator.content.length > 1) {
-                            parser.err(...declarator.content.slice(1));
-                        }
-                        declarator = new Grouping(declarator.content[0], wrapper);
-                    }
-                }
-                if (declarator.type === "Punctuator") {
-                    switch (declarator.value) {
-                        case "{}":
-                            declarator = parseObjectPattern(context, declarator);
-                            break;
-                        case "[]":
-                            declarator = parseArrayPattern(context, declarator);
-                            break;
-                        default:
-                            parser.err(declarator);
-                            declarator = null;
-                    }
-                } else if (declarator.type !== "Identifier") {
-                    parser.err(declarator);
-                    declarator = null;
-                } else {
-                    validateAssignment(context, declarator);
-                }
-                if (kind) {
-                    left = new NODES.VariableDeclaration();
-                    left.declarations = [
-                        {
-                            type: "VariableDeclarator",
-                            id: declarator,
-                            init: null
-                        }
-                    ];
-                    left.kind = kind.value;
-                    left.range = [kind.range[0], declarator.range[1]];
-                    left.loc = {
-                        start: kind.loc.start,
-                        end: declarator.loc.end
-                    };
-                    collected.left = left;
-                } else {
-                    collected.left = declarator;
-                }
-                return collected;
-            },
             validator(context: Context) {
-                return context[CONTEXT.right] >= context.tokens.length - 1;
+                let right = context[CONTEXT.right];
+                return right >= context.tokens.length - 1;
             },
-            filter: [function () { return false }, null],
             precedence: 1.5,
             collector: [
                 {
-                    _: _Series(//和 VariableDeclaration 不冲突的占位 
-                        MARKS.BOUNDARY,
-                        _Or(
-                            _Series(
-                                _Or("Keyword var const let"),
-                                _Or("Identifier", "Punctuator {} [] ()")
-                            ),
-                            _Series(
-                                "Identifier let",
-                                _Or("Identifier", "Punctuator {} ()")
-                            )
-                        )
-
-                    )
-                },
-                {
                     type: _Mark("ForOfStatement"),
                     _prev: _NonCollecting(MARKS.BOUNDARY),
-                    left: _Series(
-                        _Option(_Or("Identifier let", "Keyword var const let")),
-                        _Or("Identifier", "Punctuator {} [] ()")
+                    left: _Or(
+                        "VariableDeclaration",
+                        _Or("Identifier", _Punctuator("()", "[]", "{}")).pipe(
+                            function (context: Context, node: Node) {
+                                let parser = context[CONTEXT.parser];
+                                let target = node;
+                                if (node.value === "()") {
+                                    target = get_inner_group(node);
+                                    if (target.content.length > 1) {
+                                        parser.err(...target.content.slice(1));
+                                    }
+                                    target = target.content[0] || node;
+                                }
+
+                                if (target.type === "Identifier") {
+                                    validateAssignment(context, target);
+                                    return target;
+                                } else {
+                                    switch (target.value) {
+                                        case "[]":
+                                            return new Grouping(
+                                                parseArrayPattern(context, target),
+                                                node
+                                            );
+                                        case "{}":
+                                            return new Grouping(
+                                                parseObjectPattern(context, target),
+                                                node
+                                            );
+                                        default:
+                                            context[CONTEXT.parser].err(node);
+                                            return null;
+                                    }
+                                }
+                            }
+                        )
                     ),
-                    token: _NonCollecting("Identifier of"),
+                    token: _NonCollecting(
+                        _Identifier("of").walk(
+                            function (context: Context, index: number) {
+                                context.tokens[index] = reinterpretIdentifierAsKeyword(context.tokens[index]);
+                            }
+                        ),
+                        _Keyword("of")
+                    ),
                     right: _Option(
                         _Series(
                             EXPRESSION_OR_VALIDATE_STRICT_RESERVED_WORDS_PATTERN,
@@ -692,3 +743,7 @@ let FOR_ITERATOR_TREE: MatchTree;
 async_getter.get("EXPRESSION_TREE", function (EXPRESSION_TREE: MatchTree) {
     FOR_ITERATOR_TREE = createMatchTree(ForIterator, EXPRESSION_TREE);
 });
+
+
+
+export default Statements;

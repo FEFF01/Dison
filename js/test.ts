@@ -15,7 +15,7 @@ import data7 from './test/test_data7.js'
 
 let data0 = (window as any).test.innerHTML;
 
-let test_data = data0
+let test_data = data1
 let a, b;
 
 console.time("dison");

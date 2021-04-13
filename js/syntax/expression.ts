@@ -993,7 +993,7 @@ const Params = {
     }
 }
 
-const ArrayElements = {
+const ArrayElements: any = {
     "Success": {
         handler: join_content,
         precedence: 0,
@@ -1169,6 +1169,7 @@ async_getter.get("Expressions", function (expressions: Record<string, any>) {
     }
 });
 export {
+    ArrayElements,
     PARAMS_PATTERN,
     FUNCTION_BODY_PATTERN,
     PrimaryExpressions,

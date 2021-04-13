@@ -145,6 +145,10 @@ function _Scanner(
                 node = nodes[index][key];
                 if (node) {
                     if (res = _finally(node, nodes[index + 1])) {
+                        if (res === MARKS.RESET) {
+                            nodes.length = 0;
+                            return;
+                        }
                         return res;
                     }
                     nodes[index] = node;
@@ -155,6 +159,10 @@ function _Scanner(
             }
             if (node = root[key]) {
                 if (res = _finally(node, str.length - 1)) {
+                    if (res == MARKS.RESET) {
+                        nodes.length = 0;
+                        return;
+                    }
                     return res;
                 }
                 nodes.push(node, str.length - 1);

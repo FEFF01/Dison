@@ -159,6 +159,7 @@ declare const enum MARKS {
     ESCAPE = "\\",
     ERROR = " ERR",
     NEXT = " NEXT",
+    RESET = " RESET",
     ATTACH = " ATT",
     STRING = " STR"
 }

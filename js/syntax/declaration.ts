@@ -13,7 +13,7 @@ import {
     STATEMANT_LIST_ITEM_PATTERN,
     TOPLEVEL_ITEM_PATTERN,
     _Option, _Or, _Series, _NonCollecting, _Mark, NODES, TYPE_ALIAS,
-    validateBinding, validateLineTerminator, createMatchTree, join_content, _NonCapturing
+    validateBinding, validateLineTerminator, createMatchTree, join_content, _NonCapturing, reinterpretIdentifierAsKeyword
 } from './head'
 //import { Expressions, UNIT_EXPRESSION_TREE } from './expression';
 
@@ -225,4 +225,5 @@ async_getter.get("Declarations", function (declarations: Record<string, any>) {
     }
 
 })
+export { get_variable_declarator };
 export default Declarations;

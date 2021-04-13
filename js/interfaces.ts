@@ -187,6 +187,7 @@ const enum MARKS {
 
     ERROR = " ERR",
     NEXT = " NEXT",
+    RESET = " RESET",
     ATTACH = " ATT",
     STRING = " STR"
 

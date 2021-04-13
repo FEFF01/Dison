@@ -106,13 +106,14 @@ and open the template in the editor.
     </script>
 
     <script id="test" type="text/babel">
-        'use strict';
+        //'use strict';
     import * as a from ''
     import def,* as a from ''
     
     import defa from ''
     import {a as b,} from ''
     export {a,b as b}
+
     function a(a){}
     export default {}
       function * a(){
@@ -150,6 +151,8 @@ and open the template in the editor.
         }
         for ({ a={ s } + s * 10 } in b);
 
+        for(let [a,b] of [a,b,c]);
+        for(let [a,b] of of[a,b,c]);
         (a = 10) = 20
         let [a] = 10
             //[,,,b,c]=a;
@@ -197,6 +200,7 @@ and open the template in the editor.
         a in b
         for ((let1) in [s]);
         //for(;;  a){}
+        for(let [c,b] of b);
         for (([a, b]) of a.b()) c: d: { }
         for (let [a, b] = 10; ;) { }
         for (let [a, b] = 10; ; a) { }
