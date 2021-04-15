@@ -1086,7 +1086,7 @@ const ObjectProperties = {
             },
             [
                 ["key", "Identifier"],
-                ["value", (window as any).test1 = _Mark(function (context: Context) {
+                ["value", _Mark(function (context: Context) {
                     return context[CONTEXT.collected].key;
                 })],
                 ["shorthand", _Mark(true)]

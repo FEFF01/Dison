@@ -379,7 +379,7 @@ function _Mark(some?: any) {
     return new Mark(some);
 }
 let NODES: Record<string, (...args: any) => void> = {
-    Grouping(node?: Record<string, any>, grouping?: Token) {
+    Grouping: function (node?: Record<string, any>, grouping?: Token) {
         this.type = "Grouping";
         for (const key in node) {
             this[key] = node[key];
@@ -389,7 +389,7 @@ let NODES: Record<string, (...args: any) => void> = {
             this.loc = grouping.loc;
         }
     },
-    Directive(
+    Directive: function (
         type: string,
         expression: Node,
         directive: string,
@@ -402,12 +402,12 @@ let NODES: Record<string, (...args: any) => void> = {
         this.range = range;
         this.loc = loc;
     },
-    Script(body: Array<Node>) {
+    Script: function (body: Array<Node>) {
         this.type = "Program";
         this.sourceType = "script";
         this.body = body;
     },
-    Module(body: Array<Node>) {
+    Module: function (body: Array<Node>) {
         this.type = "Program";
         this.sourceType = "module";
         this.body = body;
