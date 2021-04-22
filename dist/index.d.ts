@@ -24,7 +24,7 @@ declare class Tokenizer extends TokenizerOrigin {
     PUNCTUATORS_TREE: import("./interfaces").SearchTree;
 }
 declare class Dison extends Parser {
-    token_hooks: Record<string, (token: Token, tokenizer?: TokenizerOrigin | Parser) => Token>;
+    token_hooks: Record<string, (token: Token, tokenizer?: Parser | TokenizerOrigin) => Token>;
     TYPE_ENUMS: {
         Identifier: string;
         Keyword: string;

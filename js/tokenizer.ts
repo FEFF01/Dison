@@ -31,7 +31,7 @@ export default class extends Character {
         this.error_logs.push.apply(this.error_logs, arguments);
     }
     init(input: string) {
-        this.line_number = 0;
+        this.line_number = 1;
         this.line_start = 0;
         this.index = 0;
         this.input = input;
