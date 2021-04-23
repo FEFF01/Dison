@@ -158,12 +158,16 @@ const ModuleDeclarations: Record<string, any> = {
                             )
                         ),
                         _Mark(function () { })//使结果收集为数组
-                    )
+                    ),
                 ),
                 _: _NonCollecting("Identifier from"),
                 source: STRING_LITERAL_PATTERN,
                 _next: _Option("Punctuator ;")
-            }
+            },
+            [
+                ["specifiers", _Mark(function () { return []; })],
+                ["_", _Mark()],
+            ]
         ]
     },
     "ExportAllDeclaration": {
